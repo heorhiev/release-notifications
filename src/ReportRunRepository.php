@@ -38,7 +38,8 @@ final class ReportRunRepository
                     summary_fallback_used,
                     summary_raw_output,
                     message_preview,
-                    jira_jql
+                    jira_jql,
+                    release_url
                 ) VALUES (
                     :release_name,
                     :issues_count,
@@ -52,7 +53,8 @@ final class ReportRunRepository
                     :summary_fallback_used,
                     CAST(:summary_raw_output AS JSONB),
                     :message_preview,
-                    :jira_jql
+                    :jira_jql,
+                    :release_url
                 ) RETURNING id'
             );
 
@@ -79,6 +81,10 @@ final class ReportRunRepository
             $statement->bindValue(':summary_raw_output', $this->encodeJson($runData['summary_raw_output'] ?? null));
             $statement->bindValue(':message_preview', $this->sanitizeText((string) $runData['message_preview']));
             $statement->bindValue(':jira_jql', $this->sanitizeText((string) $runData['jira_jql']));
+            $statement->bindValue(
+                ':release_url',
+                $this->sanitizeNullableText(isset($runData['release_url']) ? (string) $runData['release_url'] : null)
+            );
             $statement->execute();
 
             $reportRunId = (int) $statement->fetchColumn();
@@ -116,6 +122,7 @@ final class ReportRunRepository
                 summary_model,
                 summary_fallback_used,
                 jira_jql,
+                release_url,
                 created_at
             FROM report_runs
             ORDER BY id DESC
@@ -148,6 +155,7 @@ final class ReportRunRepository
                 summary_raw_output,
                 message_preview,
                 jira_jql,
+                release_url,
                 created_at
             FROM report_runs
             WHERE id = :id'
@@ -213,6 +221,7 @@ final class ReportRunRepository
                 summary_raw_output,
                 message_preview,
                 jira_jql,
+                release_url,
                 created_at
             FROM report_runs';
 

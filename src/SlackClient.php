@@ -17,9 +17,9 @@ final class SlackClient
         $this->transport = $transport ?? $this->resolveTransport();
     }
 
-    public function sendMessage(string $text): void
+    public function sendMessage(string $text, ?string $releaseUrl = null): void
     {
-        $this->transport->sendSummary($text);
+        $this->transport->sendSummary($text, $releaseUrl);
     }
 
     private function resolveTransport(): SlackTransportInterface

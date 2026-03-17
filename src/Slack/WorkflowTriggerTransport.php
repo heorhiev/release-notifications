@@ -19,9 +19,9 @@ final class WorkflowTriggerTransport implements SlackTransportInterface
         $this->triggerUrl = Env::require('SLACK_WEBHOOK_URL');
     }
 
-    public function sendSummary(string $summary): void
+    public function sendSummary(string $summary, ?string $releaseUrl = null): void
     {
-        $payload = $this->buildWorkflowPayload($summary);
+        $payload = $this->buildWorkflowPayload($summary, $releaseUrl);
 
         $response = $this->httpClient->request('POST', $this->triggerUrl, [], $payload);
 
@@ -38,7 +38,7 @@ final class WorkflowTriggerTransport implements SlackTransportInterface
     /**
      * @return array<string, string>
      */
-    private function buildWorkflowPayload(string $summary): array
+    private function buildWorkflowPayload(string $summary, ?string $releaseUrl = null): array
     {
         $summary = $this->stripSlackLinks(trim(str_replace("\r\n", "\n", $summary)));
         $blocks = preg_split('/\n{2,}/u', $summary) ?: [];
@@ -60,6 +60,7 @@ final class WorkflowTriggerTransport implements SlackTransportInterface
             'Section6Body' => '',
             'Section7Title' => '',
             'Section7Body' => '',
+            'ReleaseUrl' => trim((string) $releaseUrl),
             'Risks' => '',
         ];
 
@@ -84,26 +85,27 @@ final class WorkflowTriggerTransport implements SlackTransportInterface
             }
 
             $title = trim($matches[1]);
+            $normalizedTitle = preg_replace('/^[•\s]+/u', '', $title) ?? $title;
             $body = trim($matches[2]);
 
-            if ($title === 'Overview') {
+            if ($normalizedTitle === 'Overview') {
                 $payload['Overview'] = $body;
                 continue;
             }
 
-            if ($title === 'Риски и замечания') {
+            if ($normalizedTitle === 'Риски и замечания') {
                 $payload['Risks'] = $body;
                 continue;
             }
 
             if ($sectionIndex > 7) {
                 $existing = $payload['Section7Body'];
-                $merged = $existing === '' ? $body : $existing . "\n\n" . $title . "\n" . $body;
+                $merged = $existing === '' ? $body : $existing . "\n\n" . $normalizedTitle . "\n" . $body;
                 $payload['Section7Body'] = $merged;
                 continue;
             }
 
-            $payload[sprintf('Section%dTitle', $sectionIndex)] = $title;
+            $payload[sprintf('Section%dTitle', $sectionIndex)] = $normalizedTitle;
             $payload[sprintf('Section%dBody', $sectionIndex)] = $body;
             $sectionIndex++;
         }

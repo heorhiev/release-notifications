@@ -6,5 +6,5 @@ namespace App\Slack;
 
 interface SlackTransportInterface
 {
-    public function sendSummary(string $summary): void;
+    public function sendSummary(string $summary, ?string $releaseUrl = null): void;
 }

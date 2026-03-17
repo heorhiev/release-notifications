@@ -6,6 +6,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/bootstrap.php';
 
 use App\IssueFormatter;
+use App\JiraClient;
 use App\ReportRunRepository;
 use App\SlackClient;
 
@@ -57,9 +58,14 @@ try {
 
     $summaryText = trim((string) ($run['summary_text'] ?? ''));
     $releaseName = trim((string) ($run['release_name'] ?? ''));
+    $releaseUrl = trim((string) ($run['release_url'] ?? ''));
 
     if ($summaryText === '' || $releaseName === '') {
         throw new RuntimeException('Saved report run does not contain a valid release summary.');
+    }
+
+    if ($releaseUrl === '') {
+        $releaseUrl = (new JiraClient())->getReleaseUrlByName($releaseName) ?? '';
     }
 
     $formatter = new IssueFormatter();
@@ -71,7 +77,7 @@ try {
     }
 
     $slackClient = new SlackClient();
-    $slackClient->sendMessage($message);
+    $slackClient->sendMessage($message, $releaseUrl !== '' ? $releaseUrl : null);
     $repository->markSlackSent((int) $run['id']);
 
     $payload = [
@@ -79,6 +85,7 @@ try {
         'release' => $releaseName,
         'summary_mode' => (string) ($run['summary_mode'] ?? 'unknown'),
         'summary_provider' => (string) ($run['summary_provider'] ?? 'unknown'),
+        'release_url' => $releaseUrl,
         'sent' => true,
     ];
 

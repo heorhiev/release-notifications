@@ -143,6 +143,42 @@ final class JiraClient
         return $name;
     }
 
+    public function getReleaseUrlByName(string $release): ?string
+    {
+        $release = trim($release);
+        if ($release === '') {
+            return null;
+        }
+
+        foreach ($this->getProjectVersions() as $version) {
+            if (trim((string) ($version['name'] ?? '')) !== $release) {
+                continue;
+            }
+
+            return $this->buildReleaseUrl($version);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $version
+     */
+    public function buildReleaseUrl(array $version): ?string
+    {
+        $versionId = trim((string) ($version['id'] ?? ''));
+        if ($versionId === '') {
+            return null;
+        }
+
+        return sprintf(
+            '%s/projects/%s/versions/%s/tab/release-report-all-issues',
+            $this->baseUrl,
+            rawurlencode($this->projectKey),
+            rawurlencode($versionId)
+        );
+    }
+
     private function escapeJqlValue(string $value): string
     {
         return str_replace('"', '\\"', $value);

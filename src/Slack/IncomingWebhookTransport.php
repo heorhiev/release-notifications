@@ -25,10 +25,15 @@ final class IncomingWebhookTransport implements SlackTransportInterface
         $this->iconEmoji = Env::get('SLACK_ICON_EMOJI', ':rocket:') ?? ':rocket:';
     }
 
-    public function sendSummary(string $summary): void
+    public function sendSummary(string $summary, ?string $releaseUrl = null): void
     {
+        $text = $summary;
+        if ($releaseUrl !== null && trim($releaseUrl) !== '') {
+            $text .= "\n\n*Release Link*\n" . trim($releaseUrl);
+        }
+
         $payload = [
-            'text' => $summary,
+            'text' => $text,
             'username' => $this->username,
             'icon_emoji' => $this->iconEmoji,
         ];

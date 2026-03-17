@@ -43,6 +43,7 @@ final class ReleaseReportService
         bool $includeDepartmentGroups = false
     ): array
     {
+        $releaseUrl = $this->jiraClient->getReleaseUrlByName($release);
         $searchResult = $this->jiraClient->searchIssuesByRelease($release);
         $issues = $searchResult['issues'];
         $detailsText = $this->issueFormatter->formatReleaseReport($release, $issues, $includeDescription);
@@ -61,7 +62,7 @@ final class ReleaseReportService
         );
 
         if (!$dryRun) {
-            $this->slackClient->sendMessage($message);
+            $this->slackClient->sendMessage($message, $releaseUrl);
         }
 
         $reportRunId = $this->reportRunRepository->createRun([
@@ -78,6 +79,7 @@ final class ReleaseReportService
             'summary_raw_output' => $summary->rawOutput,
             'message_preview' => $message,
             'jira_jql' => (string) $searchResult['jql'],
+            'release_url' => $releaseUrl,
         ], $issues);
 
         $result = [
@@ -91,6 +93,7 @@ final class ReleaseReportService
                 'mode' => $summary->mode,
                 'text' => $summary->text,
             ],
+            'release_url' => $releaseUrl,
             'sent' => !$dryRun,
         ];
 

@@ -230,7 +230,7 @@ final class IssueFormatter
             $line = ltrim($block, "- \t\n\r\0\x0B");
 
             if ($index === 0) {
-                $formatted[] = "*Overview*\n" . $line;
+                $formatted[] = "*• Overview*\n" . $line;
                 continue;
             }
 
@@ -238,7 +238,7 @@ final class IssueFormatter
             if (count($parts) === 2) {
                 $title = trim($parts[0]);
                 $content = trim($parts[1]);
-                $formatted[] = sprintf("*%s*\n%s", $title, $content);
+                $formatted[] = sprintf("*• %s*\n%s", $title, $content);
                 continue;
             }
 
