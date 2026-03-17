@@ -1,0 +1,4 @@
+ALTER TABLE report_runs
+    ADD COLUMN IF NOT EXISTS summary_text TEXT,
+    ADD COLUMN IF NOT EXISTS summary_mode VARCHAR(64) NOT NULL DEFAULT 'rule';
+

@@ -1,0 +1,56 @@
+services:
+  jira-release-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jira-release-bot
+    env_file:
+      - .env
+    environment:
+      APP_PORT: 8080
+      DB_HOST: postgres
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: sh -lc 'php -S 0.0.0.0:${APP_PORT:-8080} -t public'
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: jira-release-bot-postgres
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-jira_release_bot}
+      POSTGRES_USER: ${DB_USERNAME:-jira_release_bot}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-jira_release_bot}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-jira_release_bot} -d ${DB_DATABASE:-jira_release_bot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:9
+    container_name: jira-release-bot-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

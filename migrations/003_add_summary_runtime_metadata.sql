@@ -1,0 +1,5 @@
+ALTER TABLE report_runs
+    ADD COLUMN IF NOT EXISTS summary_provider VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS summary_model VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS summary_fallback_used BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS summary_raw_output JSONB;
