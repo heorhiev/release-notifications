@@ -325,13 +325,13 @@ final class IssueFormatter
             $buffer[] = $sentence;
 
             if (count($buffer) >= $sentencesPerParagraph) {
-                $paragraphs[] = implode(' ', $buffer);
+                $paragraphs[] = implode("\n", $buffer);
                 $buffer = [];
             }
         }
 
         if ($buffer !== []) {
-            $paragraphs[] = implode(' ', $buffer);
+            $paragraphs[] = implode("\n", $buffer);
         }
 
         return $paragraphs;
