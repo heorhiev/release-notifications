@@ -230,22 +230,111 @@ final class IssueFormatter
             $line = ltrim($block, "- \t\n\r\0\x0B");
 
             if ($index === 0) {
-                $formatted[] = "*• Overview*\n" . $line;
+                $formatted[] = "*Overview*\n" . $this->formatSlackBlockParagraphs($line);
                 continue;
             }
 
             $parts = explode(':', $line, 2);
             if (count($parts) === 2) {
                 $title = trim($parts[0]);
-                $content = trim($parts[1]);
-                $formatted[] = sprintf("*• %s*\n%s", $title, $content);
+                $content = $this->formatSlackBlockParagraphs(trim($parts[1]));
+                $formatted[] = sprintf("*%s*\n%s", $title, $content);
                 continue;
             }
 
             $formatted[] = $line;
         }
 
-        return $this->linkifyIssueKeys(implode("\n\n", $formatted));
+        return $this->linkifyIssueKeys(implode("\n\n\n", $formatted));
+    }
+
+    private function formatSlackBlockParagraphs(string $content): string
+    {
+        $content = trim(str_replace("\r\n", "\n", $content));
+        if ($content === '') {
+            return '';
+        }
+
+        $content = preg_replace('/\s+Детали:/u', "\n\nДетали:", $content) ?? $content;
+        $content = preg_replace('/\s+Примеры задач:/u', "\n\nПримеры задач:", $content) ?? $content;
+        $content = preg_replace('/\n{3,}/u', "\n\n", $content) ?? $content;
+
+        $paragraphs = preg_split('/\n{2,}/u', $content) ?: [];
+        $formattedParagraphs = [];
+
+        foreach ($paragraphs as $paragraph) {
+            $paragraph = trim($paragraph);
+            if ($paragraph === '') {
+                continue;
+            }
+
+            if (str_starts_with($paragraph, 'Детали:')) {
+                $detailsText = trim(substr($paragraph, strlen('Детали:')));
+                $detailsParagraphs = $this->splitIntoParagraphsBySentences($detailsText, 2);
+
+                if ($detailsParagraphs !== []) {
+                    foreach ($detailsParagraphs as $detailsParagraph) {
+                        $formattedParagraphs[] = $detailsParagraph;
+                    }
+                }
+
+                continue;
+            }
+
+            if (str_starts_with($paragraph, 'Примеры задач:')) {
+                $formattedParagraphs[] = $paragraph;
+                continue;
+            }
+
+            foreach ($this->splitIntoParagraphsBySentences($paragraph, 2) as $splitParagraph) {
+                $formattedParagraphs[] = $splitParagraph;
+            }
+        }
+
+        return trim(implode("\n\n", $formattedParagraphs));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function splitIntoParagraphsBySentences(string $text, int $sentencesPerParagraph): array
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return [];
+        }
+
+        $parts = preg_split('/(?<=[.!?])\s+/u', $text) ?: [];
+        $sentences = [];
+
+        foreach ($parts as $part) {
+            $part = trim($part);
+            if ($part !== '') {
+                $sentences[] = $part;
+            }
+        }
+
+        if ($sentences === []) {
+            return [$text];
+        }
+
+        $paragraphs = [];
+        $buffer = [];
+
+        foreach ($sentences as $sentence) {
+            $buffer[] = $sentence;
+
+            if (count($buffer) >= $sentencesPerParagraph) {
+                $paragraphs[] = implode(' ', $buffer);
+                $buffer = [];
+            }
+        }
+
+        if ($buffer !== []) {
+            $paragraphs[] = implode(' ', $buffer);
+        }
+
+        return $paragraphs;
     }
 
     private function formatIssueKeyLink(string $issueKey): string
