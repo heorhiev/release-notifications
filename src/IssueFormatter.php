@@ -27,7 +27,7 @@ final class IssueFormatter
     ): string
     {
         $parts = [
-            sprintf("*Release %s Summary*\n\n%s", $release, $this->formatSlackSummaryBody($summaryText)),
+            sprintf("*Release %s*\n\n%s", $release, $this->formatSlackSummaryBody($summaryText)),
         ];
 
         if ($departmentGroupsText !== null && trim($departmentGroupsText) !== '') {
@@ -41,7 +41,11 @@ final class IssueFormatter
 
     public function formatSummarySlackMessage(string $release, string $summaryText): string
     {
-        return sprintf("*Release %s Summary*\n\n%s", $release, $this->formatSlackSummaryBlocks($summaryText));
+        $formattedSummary = $this->isPreformattedSlackSummary($summaryText)
+            ? $this->normalizeSlackText($summaryText)
+            : $this->formatSlackSummaryBlocks($summaryText);
+
+        return sprintf("*Release %s*\n\n%s", $release, $formattedSummary);
     }
 
     /**
@@ -187,7 +191,7 @@ final class IssueFormatter
 
     private function formatSlackSummaryBody(string $summaryText): string
     {
-        $summaryText = trim(str_replace("\r\n", "\n", $summaryText));
+        $summaryText = $this->normalizeSlackText($summaryText);
         if ($summaryText === '') {
             return '';
         }
@@ -209,6 +213,18 @@ final class IssueFormatter
         }
 
         return implode("\n\n", $normalizedBlocks);
+    }
+
+    private function isPreformattedSlackSummary(string $summaryText): bool
+    {
+        $summaryText = $this->normalizeSlackText($summaryText);
+
+        return str_contains($summaryText, '(<http') || str_contains($summaryText, '(<https');
+    }
+
+    private function normalizeSlackText(string $text): string
+    {
+        return trim(str_replace("\r\n", "\n", $text));
     }
 
     private function formatSlackSummaryBlocks(string $summaryText): string

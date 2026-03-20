@@ -4,10 +4,22 @@ declare(strict_types=1);
 
 namespace App\ReleaseSummary\Support;
 
+use App\Env;
 use App\ReleaseSummary\DTO\ReleaseIssue;
 
 final class ReleaseIssueMapper
 {
+    private string $jiraBrowseBaseUrl;
+
+    public function __construct()
+    {
+        $jiraBaseUrl = rtrim(
+            Env::get('JIRA_BASE_URL', 'https://linksmanagement.atlassian.net') ?? 'https://linksmanagement.atlassian.net',
+            '/'
+        );
+        $this->jiraBrowseBaseUrl = $jiraBaseUrl . '/browse/';
+    }
+
     /**
      * @param array<int, array<string, mixed>> $issues
      * @return array<int, ReleaseIssue>
@@ -27,12 +39,15 @@ final class ReleaseIssueMapper
         return new ReleaseIssue(
             key: trim((string) ($issue['key'] ?? 'UNKNOWN')),
             summary: trim((string) ($fields['summary'] ?? '')),
+            url: $this->buildIssueUrl((string) ($issue['key'] ?? 'UNKNOWN')),
             issueType: $this->nestedField($fields, ['issuetype', 'name']) ?? 'Unknown',
             status: $this->nestedField($fields, ['status', 'name']) ?? 'Unknown',
             assignee: $this->nestedField($fields, ['assignee', 'displayName']),
             description: $this->extractDescriptionText($fields['description'] ?? null),
             labels: $this->stringList($fields['labels'] ?? []),
-            components: $this->extractComponentNames($fields['components'] ?? [])
+            components: $this->extractComponentNames($fields['components'] ?? []),
+            parentKey: $this->nestedField($fields, ['parent', 'key']),
+            parentSummary: $this->nestedField($fields, ['parent', 'fields', 'summary'])
         );
     }
 
@@ -150,5 +165,13 @@ final class ReleaseIssueMapper
 
         return $value === '' ? null : $value;
     }
-}
 
+    private function buildIssueUrl(string $issueKey): string
+    {
+        $issueKey = trim($issueKey);
+
+        return $issueKey === ''
+            ? $this->jiraBrowseBaseUrl
+            : $this->jiraBrowseBaseUrl . rawurlencode($issueKey);
+    }
+}
