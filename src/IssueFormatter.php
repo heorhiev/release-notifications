@@ -27,7 +27,7 @@ final class IssueFormatter
     ): string
     {
         $parts = [
-            sprintf("*Release %s*\n\n%s", $release, $this->formatSlackSummaryBody($summaryText)),
+            sprintf("*Release: %s*\n\n%s", $release, $this->formatSlackSummaryBody($summaryText)),
         ];
 
         if ($departmentGroupsText !== null && trim($departmentGroupsText) !== '') {
@@ -45,7 +45,7 @@ final class IssueFormatter
             ? $this->normalizeSlackText($summaryText)
             : $this->formatSlackSummaryBlocks($summaryText);
 
-        return sprintf("*Release %s*\n\n%s", $release, $formattedSummary);
+        return sprintf("*Release: %s*\n\n%s", $release, $formattedSummary);
     }
 
     /**

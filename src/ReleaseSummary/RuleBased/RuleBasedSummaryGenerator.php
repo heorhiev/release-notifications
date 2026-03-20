@@ -108,6 +108,14 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
                     return -1;
                 }
 
+                if ($left['group_key'] === 'ADSY-14403') {
+                    return $right['group_key'] === '__no_epic__' ? -1 : 1;
+                }
+
+                if ($right['group_key'] === 'ADSY-14403') {
+                    return $left['group_key'] === '__no_epic__' ? 1 : -1;
+                }
+
                 return strcasecmp($left['title'], $right['title']);
             }
         );
