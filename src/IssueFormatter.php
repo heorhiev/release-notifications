@@ -35,6 +35,11 @@ final class IssueFormatter
         }
 
         $parts[] = "*Issue Details*\n" . $detailsText;
+        $footer = $this->formatReleaseCheckFooter();
+
+        if ($footer !== '') {
+            $parts[] = $footer;
+        }
 
         return implode("\n\n", $parts);
     }
@@ -45,7 +50,16 @@ final class IssueFormatter
             ? $this->normalizeSlackText($summaryText)
             : $this->formatSlackSummaryBlocks($summaryText);
 
-        return sprintf("*Release: %s*\n\n%s", $release, $formattedSummary);
+        $parts = [
+            sprintf("*Release: %s*\n\n%s", $release, $formattedSummary),
+        ];
+        $footer = $this->formatReleaseCheckFooter();
+
+        if ($footer !== '') {
+            $parts[] = $footer;
+        }
+
+        return implode("\n\n", $parts);
     }
 
     /**
@@ -213,6 +227,40 @@ final class IssueFormatter
         }
 
         return implode("\n\n", $normalizedBlocks);
+    }
+
+    private function formatReleaseCheckFooter(): string
+    {
+        $checkText = $this->normalizeEnvMultilineText(Env::get('SLACK_RELEASE_CHECK_TEXT', '') ?? '');
+        $mentions = $this->formatSlackMentions(Env::get('SLACK_MENTION_USER_IDS', '') ?? '');
+
+        return trim(implode("\n\n", array_filter([$checkText, $mentions], static fn (string $part): bool => $part !== '')));
+    }
+
+    private function normalizeEnvMultilineText(string $text): string
+    {
+        return trim(str_replace(['\\r\\n', '\\n', '\\r'], "\n", $text));
+    }
+
+    private function formatSlackMentions(string $userIds): string
+    {
+        $ids = preg_split('/[\s,;]+/', trim($userIds)) ?: [];
+        $mentions = [];
+
+        foreach ($ids as $id) {
+            $id = trim($id);
+            if ($id === '') {
+                continue;
+            }
+
+            if (preg_match('/^[UW][A-Z0-9]+$/', $id) !== 1) {
+                continue;
+            }
+
+            $mentions[] = sprintf('<@%s>', $id);
+        }
+
+        return implode(' ', array_values(array_unique($mentions)));
     }
 
     private function isPreformattedSlackSummary(string $summaryText): bool
