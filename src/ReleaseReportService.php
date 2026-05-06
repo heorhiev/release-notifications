@@ -63,6 +63,11 @@ final class ReleaseReportService
 
         if (!$dryRun) {
             $this->slackClient->sendMessage($message, $releaseUrl);
+            $releaseCheckMessage = $this->issueFormatter->formatReleaseCheckMessage();
+
+            if ($releaseCheckMessage !== '') {
+                $this->slackClient->sendMessage($releaseCheckMessage);
+            }
         }
 
         $reportRunId = $this->reportRunRepository->createRun([

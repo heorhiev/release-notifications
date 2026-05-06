@@ -35,11 +35,6 @@ final class IssueFormatter
         }
 
         $parts[] = "*Issue Details*\n" . $detailsText;
-        $footer = $this->formatReleaseCheckFooter();
-
-        if ($footer !== '') {
-            $parts[] = $footer;
-        }
 
         return implode("\n\n", $parts);
     }
@@ -50,16 +45,15 @@ final class IssueFormatter
             ? $this->normalizeSlackText($summaryText)
             : $this->formatSlackSummaryBlocks($summaryText);
 
-        $parts = [
-            sprintf("*Release: %s*\n\n%s", $release, $formattedSummary),
-        ];
-        $footer = $this->formatReleaseCheckFooter();
+        return sprintf("*Release: %s*\n\n%s", $release, $formattedSummary);
+    }
 
-        if ($footer !== '') {
-            $parts[] = $footer;
-        }
+    public function formatReleaseCheckMessage(): string
+    {
+        $checkText = $this->normalizeEnvMultilineText(Env::get('SLACK_RELEASE_CHECK_TEXT', '') ?? '');
+        $mentions = $this->formatSlackMentions(Env::get('SLACK_MENTION_USER_IDS', '') ?? '');
 
-        return implode("\n\n", $parts);
+        return trim(implode("\n\n", array_filter([$checkText, $mentions], static fn (string $part): bool => $part !== '')));
     }
 
     /**
@@ -229,14 +223,6 @@ final class IssueFormatter
         return implode("\n\n", $normalizedBlocks);
     }
 
-    private function formatReleaseCheckFooter(): string
-    {
-        $checkText = $this->normalizeEnvMultilineText(Env::get('SLACK_RELEASE_CHECK_TEXT', '') ?? '');
-        $mentions = $this->formatSlackMentions(Env::get('SLACK_MENTION_USER_IDS', '') ?? '');
-
-        return trim(implode("\n\n", array_filter([$checkText, $mentions], static fn (string $part): bool => $part !== '')));
-    }
-
     private function normalizeEnvMultilineText(string $text): string
     {
         return trim(str_replace(['\\r\\n', '\\n', '\\r'], "\n", $text));
@@ -260,7 +246,10 @@ final class IssueFormatter
             $mentions[] = sprintf('<@%s>', $id);
         }
 
-        return implode(' ', array_values(array_unique($mentions)));
+        $mentions = array_values(array_unique($mentions));
+        shuffle($mentions);
+
+        return implode(' ', $mentions);
     }
 
     private function isPreformattedSlackSummary(string $summaryText): bool

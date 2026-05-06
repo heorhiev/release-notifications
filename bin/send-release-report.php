@@ -70,14 +70,21 @@ try {
 
     $formatter = new IssueFormatter();
     $message = $formatter->formatSummarySlackMessage($releaseName, $summaryText);
+    $releaseCheckMessage = $formatter->formatReleaseCheckMessage();
 
     if ($preview) {
         fwrite(STDOUT, $message . PHP_EOL);
+        if ($releaseCheckMessage !== '') {
+            fwrite(STDOUT, "\n---\n\n" . $releaseCheckMessage . PHP_EOL);
+        }
         exit(0);
     }
 
     $slackClient = new SlackClient();
     $slackClient->sendMessage($message, $releaseUrl !== '' ? $releaseUrl : null);
+    if ($releaseCheckMessage !== '') {
+        $slackClient->sendMessage($releaseCheckMessage);
+    }
     $repository->markSlackSent((int) $run['id']);
 
     $payload = [
