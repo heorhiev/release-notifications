@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App;
 
-use App\ReleaseDepartments\DepartmentGroupingService;
 use App\ReleaseSummary\SummaryService;
 
 final class ReleaseReportService
@@ -14,22 +13,19 @@ final class ReleaseReportService
     private IssueFormatter $issueFormatter;
     private ReportRunRepository $reportRunRepository;
     private SummaryService $summaryService;
-    private DepartmentGroupingService $departmentGroupingService;
 
     public function __construct(
         ?JiraClient $jiraClient = null,
         ?SlackClient $slackClient = null,
         ?IssueFormatter $issueFormatter = null,
         ?ReportRunRepository $reportRunRepository = null,
-        ?SummaryService $summaryService = null,
-        ?DepartmentGroupingService $departmentGroupingService = null
+        ?SummaryService $summaryService = null
     ) {
         $this->jiraClient = $jiraClient ?? new JiraClient();
         $this->slackClient = $slackClient ?? new SlackClient();
         $this->issueFormatter = $issueFormatter ?? new IssueFormatter();
         $this->reportRunRepository = $reportRunRepository ?? new ReportRunRepository();
         $this->summaryService = $summaryService ?? new SummaryService();
-        $this->departmentGroupingService = $departmentGroupingService ?? new DepartmentGroupingService();
     }
 
     /**
@@ -37,33 +33,18 @@ final class ReleaseReportService
      */
     public function sendReleaseReport(
         string $release,
-        bool $includeDescription = true,
-        bool $dryRun = false,
-        ?string $summaryMode = 'rule',
-        bool $includeDepartmentGroups = false
+        bool $dryRun = false
     ): array
     {
         $releaseUrl = $this->jiraClient->getReleaseUrlByName($release);
         $searchResult = $this->jiraClient->searchIssuesByRelease($release);
         $issues = $searchResult['issues'];
-        $detailsText = $this->issueFormatter->formatReleaseReport($release, $issues, $includeDescription);
-        $summary = $this->summaryService->generate($release, $issues, $summaryMode);
-        $departmentGroups = $includeDepartmentGroups
-            ? $this->departmentGroupingService->groupRawIssues($issues)
-            : [];
-        $departmentGroupsText = $includeDepartmentGroups
-            ? $this->issueFormatter->formatDepartmentGroups($departmentGroups)
-            : null;
-        $message = $this->issueFormatter->formatSlackMessage(
-            $release,
-            $summary->text,
-            $departmentGroupsText,
-            $detailsText
-        );
+        $summary = $this->summaryService->generate($release, $issues);
+        $message = $this->issueFormatter->formatSummarySlackMessage($release, $summary->text);
 
         if (!$dryRun) {
             $this->slackClient->sendMessage($message, $releaseUrl);
-            $releaseCheckMessage = $this->issueFormatter->formatReleaseCheckMessage();
+            $releaseCheckMessage = $this->issueFormatter->formatReleaseCheckMessage($release);
 
             if ($releaseCheckMessage !== '') {
                 $this->slackClient->sendMessage($releaseCheckMessage);
@@ -73,7 +54,7 @@ final class ReleaseReportService
         $reportRunId = $this->reportRunRepository->createRun([
             'release_name' => $release,
             'issues_count' => count($issues),
-            'include_description' => $includeDescription,
+            'include_description' => true,
             'dry_run' => $dryRun,
             'slack_sent' => !$dryRun,
             'summary_text' => $summary->text,
@@ -91,9 +72,7 @@ final class ReleaseReportService
             'report_run_id' => $reportRunId,
             'release' => $release,
             'issues_count' => count($issues),
-            'include_description' => $includeDescription,
             'dry_run' => $dryRun,
-            'include_department_groups' => $includeDepartmentGroups,
             'summary' => [
                 'mode' => $summary->mode,
                 'text' => $summary->text,
@@ -102,13 +81,6 @@ final class ReleaseReportService
             'sent' => !$dryRun,
         ];
 
-        if ($includeDepartmentGroups) {
-            $result['department_groups'] = array_map(
-                static fn ($group): array => $group->toArray(),
-                $departmentGroups
-            );
-        }
-
         return $result;
     }
 
@@ -116,19 +88,13 @@ final class ReleaseReportService
      * @return array<string, mixed>
      */
     public function sendLatestReleaseReport(
-        bool $includeDescription = true,
-        bool $dryRun = false,
-        ?string $summaryMode = 'rule',
-        bool $includeDepartmentGroups = false
+        bool $dryRun = false
     ): array {
         $release = $this->jiraClient->getLatestReleaseName();
 
         return $this->sendReleaseReport(
             $release,
-            $includeDescription,
-            $dryRun,
-            $summaryMode,
-            $includeDepartmentGroups
+            $dryRun
         );
     }
 }

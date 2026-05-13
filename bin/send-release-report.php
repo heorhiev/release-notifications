@@ -70,7 +70,7 @@ try {
 
     $formatter = new IssueFormatter();
     $message = $formatter->formatSummarySlackMessage($releaseName, $summaryText);
-    $releaseCheckMessage = $formatter->formatReleaseCheckMessage();
+    $releaseCheckMessage = $formatter->formatReleaseCheckMessage($releaseName);
 
     if ($preview) {
         fwrite(STDOUT, $message . PHP_EOL);

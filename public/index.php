@@ -45,17 +45,9 @@ if ($method === 'POST' && $path === '/release-report') {
     $latestRelease = array_key_exists('latest_release', $payload)
         ? (bool) $payload['latest_release']
         : false;
-    $includeDescription = array_key_exists('include_description', $payload)
-        ? (bool) $payload['include_description']
-        : true;
     $dryRun = array_key_exists('dry_run', $payload)
         ? (bool) $payload['dry_run']
         : false;
-    $summaryMode = trim((string) ($payload['summary_mode'] ?? 'rule'));
-    $includeDepartmentGroups = array_key_exists('include_department_groups', $payload)
-        ? (bool) $payload['include_department_groups']
-        : false;
-
     if ($release !== '' && $latestRelease) {
         jsonResponse(['error' => 'Use either "release" or "latest_release", not both'], 422);
     }
@@ -64,17 +56,11 @@ if ($method === 'POST' && $path === '/release-report') {
         $service = new ReleaseReportService();
         $result = ($release === '' || $latestRelease)
             ? $service->sendLatestReleaseReport(
-                $includeDescription,
-                $dryRun,
-                $summaryMode,
-                $includeDepartmentGroups
+                $dryRun
             )
             : $service->sendReleaseReport(
                 $release,
-                $includeDescription,
-                $dryRun,
-                $summaryMode,
-                $includeDepartmentGroups
+                $dryRun
             );
 
         jsonResponse($result, 200);
@@ -119,14 +105,12 @@ if ($method === 'GET' && $path === '/debug/jira-search') {
 
 if ($method === 'GET' && $path === '/debug/summary') {
     $release = trim((string) ($_GET['release'] ?? ''));
-    $summaryMode = trim((string) ($_GET['summary_mode'] ?? 'rule'));
     $latestRelease = array_key_exists('latest_release', $_GET)
         ? (bool) $_GET['latest_release']
         : false;
 
     try {
         $jiraClient = new JiraClient();
-        $summaryService = new SummaryService();
         if ($release !== '' && $latestRelease) {
             jsonResponse(['error' => 'Use either query param "release" or "latest_release", not both'], 422);
         }
@@ -136,11 +120,10 @@ if ($method === 'GET' && $path === '/debug/summary') {
         }
 
         $searchResult = $jiraClient->searchIssuesByRelease($release);
-        $summary = $summaryService->generate($release, $searchResult['issues'], $summaryMode);
+        $summary = (new SummaryService())->generate($release, $searchResult['issues']);
 
         jsonResponse([
             'release' => $release,
-            'summary_mode' => $summaryMode,
             'issues_count' => count($searchResult['issues']),
             'summary' => [
                 'mode' => $summary->mode,

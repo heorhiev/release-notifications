@@ -9,11 +9,7 @@ use App\ReleaseReportService;
 
 $argv = $_SERVER['argv'] ?? [];
 $release = null;
-$includeDescription = !in_array('--no-description', $argv, true);
-$includeDepartmentGroups = in_array('--with-department-groups', $argv, true);
-$summaryOnly = in_array('--summary-only', $argv, true);
 $latestRelease = in_array('--latest', $argv, true);
-$summaryMode = 'rule';
 
 foreach ($argv as $argument) {
     if (!is_string($argument) || $argument === '' || str_starts_with($argument, '--')) {
@@ -25,12 +21,6 @@ foreach ($argv as $argument) {
     }
 
     $release ??= $argument;
-}
-
-foreach ($argv as $argument) {
-    if (str_starts_with((string) $argument, '--summary-mode=')) {
-        $summaryMode = (string) substr((string) $argument, strlen('--summary-mode='));
-    }
 }
 
 if (($release === null || $release === '') && !$latestRelease) {
@@ -46,23 +36,12 @@ try {
     $service = new ReleaseReportService();
     $result = $latestRelease
         ? $service->sendLatestReleaseReport(
-            $includeDescription,
-            true,
-            $summaryMode,
-            $includeDepartmentGroups
+            true
         )
         : $service->sendReleaseReport(
             (string) $release,
-            $includeDescription,
-            true,
-            $summaryMode,
-            $includeDepartmentGroups
+            true
         );
-
-    if ($summaryOnly) {
-        fwrite(STDOUT, (string) ($result['summary']['text'] ?? '') . PHP_EOL);
-        exit(0);
-    }
 
     $json = json_encode(
         $result,
