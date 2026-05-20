@@ -11,6 +11,8 @@ final class JiraClient
     private string $email;
     private string $apiToken;
     private string $projectKey;
+    /** @var array<int, array<string, mixed>>|null */
+    private ?array $projectVersions = null;
 
     public function __construct(?HttpClient $httpClient = null)
     {
@@ -74,6 +76,10 @@ final class JiraClient
      */
     public function getProjectVersions(): array
     {
+        if ($this->projectVersions !== null) {
+            return $this->projectVersions;
+        }
+
         $startAt = 0;
         $maxResults = 50;
         $versions = [];
@@ -104,7 +110,9 @@ final class JiraClient
             $startAt += count($pageValues);
         } while (!$isLast && $pageValues !== []);
 
-        return $versions;
+        $this->projectVersions = $versions;
+
+        return $this->projectVersions;
     }
 
     /**
@@ -141,6 +149,35 @@ final class JiraClient
         }
 
         return $name;
+    }
+
+    public function getNextReleaseName(string $currentRelease): ?string
+    {
+        $currentRelease = trim($currentRelease);
+        if ($currentRelease === '') {
+            return null;
+        }
+
+        $releaseNames = [];
+
+        foreach ($this->getProjectVersions() as $version) {
+            $name = trim((string) ($version['name'] ?? ''));
+            if ($name === '' || (bool) ($version['archived'] ?? false)) {
+                continue;
+            }
+
+            $releaseNames[] = $name;
+        }
+
+        $releaseNames = array_values(array_unique($releaseNames));
+        sort($releaseNames, SORT_NATURAL | SORT_FLAG_CASE);
+
+        $currentIndex = array_search($currentRelease, $releaseNames, true);
+        if ($currentIndex === false) {
+            return null;
+        }
+
+        return $releaseNames[$currentIndex + 1] ?? null;
     }
 
     public function getReleaseUrlByName(string $release): ?string

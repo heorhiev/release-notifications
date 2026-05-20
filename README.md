@@ -81,7 +81,8 @@ Slack:
 - `SLACK_MENTION_USER_IDS`
 - `SLACK_RELEASE_CHECK_TEXT`
 
-`SLACK_RELEASE_CHECK_TEXT` поддерживает плейсхолдер `{release}`. Перед отправкой он заменяется на имя релиза.
+`SLACK_RELEASE_CHECK_TEXT` поддерживает плейсхолдеры `{release}` и `{next_release}`.
+Перед отправкой они заменяются на имя текущего релиза и следующий после него Jira release по сортировке имени.
 
 Пример Slack-ссылки:
 

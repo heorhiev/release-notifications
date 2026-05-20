@@ -64,13 +64,15 @@ try {
         throw new RuntimeException('Saved report run does not contain a valid release summary.');
     }
 
+    $jiraClient = new JiraClient();
     if ($releaseUrl === '') {
-        $releaseUrl = (new JiraClient())->getReleaseUrlByName($releaseName) ?? '';
+        $releaseUrl = $jiraClient->getReleaseUrlByName($releaseName) ?? '';
     }
 
+    $nextRelease = $jiraClient->getNextReleaseName($releaseName);
     $formatter = new IssueFormatter();
     $message = $formatter->formatSummarySlackMessage($releaseName, $summaryText);
-    $releaseCheckMessage = $formatter->formatReleaseCheckMessage($releaseName);
+    $releaseCheckMessage = $formatter->formatReleaseCheckMessage($releaseName, $nextRelease);
 
     if ($preview) {
         fwrite(STDOUT, $message . PHP_EOL);
@@ -93,6 +95,7 @@ try {
         'summary_mode' => (string) ($run['summary_mode'] ?? 'unknown'),
         'summary_provider' => (string) ($run['summary_provider'] ?? 'unknown'),
         'release_url' => $releaseUrl,
+        'next_release' => $nextRelease,
         'sent' => true,
     ];
 

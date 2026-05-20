@@ -41,10 +41,11 @@ final class ReleaseReportService
         $issues = $searchResult['issues'];
         $summary = $this->summaryService->generate($release, $issues);
         $message = $this->issueFormatter->formatSummarySlackMessage($release, $summary->text);
+        $nextRelease = $this->jiraClient->getNextReleaseName($release);
 
         if (!$dryRun) {
             $this->slackClient->sendMessage($message, $releaseUrl);
-            $releaseCheckMessage = $this->issueFormatter->formatReleaseCheckMessage($release);
+            $releaseCheckMessage = $this->issueFormatter->formatReleaseCheckMessage($release, $nextRelease);
 
             if ($releaseCheckMessage !== '') {
                 $this->slackClient->sendMessage($releaseCheckMessage);
@@ -78,6 +79,7 @@ final class ReleaseReportService
                 'text' => $summary->text,
             ],
             'release_url' => $releaseUrl,
+            'next_release' => $nextRelease,
             'sent' => !$dryRun,
         ];
 

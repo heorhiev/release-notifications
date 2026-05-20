@@ -23,25 +23,23 @@ final class IssueFormatter
         return sprintf("*Release: %s*\n\n%s", $release, $formattedSummary);
     }
 
-    public function formatReleaseCheckMessage(?string $releaseName = null): string
+    public function formatReleaseCheckMessage(?string $releaseName = null, ?string $nextReleaseName = null): string
     {
         $checkText = $this->normalizeEnvMultilineText(Env::get('SLACK_RELEASE_CHECK_TEXT', '') ?? '');
-        $checkText = $this->applyReleaseCheckPlaceholders($checkText, $releaseName);
+        $checkText = $this->applyReleaseCheckPlaceholders($checkText, $releaseName, $nextReleaseName);
         $mentions = $this->formatSlackMentions(Env::get('SLACK_MENTION_USER_IDS', '') ?? '');
 
         return trim(implode("\n\n", array_filter([$checkText, $mentions], static fn (string $part): bool => $part !== '')));
     }
 
-    private function applyReleaseCheckPlaceholders(string $text, ?string $releaseName): string
+    private function applyReleaseCheckPlaceholders(string $text, ?string $releaseName, ?string $nextReleaseName): string
     {
         $releaseName = trim((string) $releaseName);
-
-        if ($releaseName === '') {
-            return $text;
-        }
+        $nextReleaseName = trim((string) $nextReleaseName);
 
         return strtr($text, [
             '{release}' => $releaseName,
+            '{next_release}' => $nextReleaseName,
         ]);
     }
 

@@ -18,7 +18,8 @@ Release-check текст задается переменной:
 SLACK_RELEASE_CHECK_TEXT="---\n*Dear Team*, проверьте все ли ваши задачи попали в релиз {release}."
 ```
 
-Поддерживается только плейсхолдер `{release}`.
+Поддерживаются плейсхолдеры `{release}` и `{next_release}`.
+`{next_release}` заменяется на следующий после текущего Jira release по сортировке имени.
 
 ## Docker
 
