@@ -9,6 +9,7 @@ final class ReleaseIssue
     /**
      * @param array<int, string> $labels
      * @param array<int, string> $components
+     * @param array<int, array{key:string,summary:string,url:string,status:string,issueType:string}> $subTasks
      */
     public function __construct(
         public readonly string $key,
@@ -21,7 +22,8 @@ final class ReleaseIssue
         public readonly array $labels,
         public readonly array $components,
         public readonly ?string $parentKey = null,
-        public readonly ?string $parentSummary = null
+        public readonly ?string $parentSummary = null,
+        public readonly array $subTasks = []
     ) {
     }
 }

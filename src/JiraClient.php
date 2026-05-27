@@ -51,7 +51,7 @@ final class JiraClient
         do {
             $query = http_build_query([
                 'jql' => $jql,
-                'fields' => 'summary,description,issuetype,status,assignee,labels,components,parent',
+                'fields' => 'summary,description,issuetype,status,assignee,labels,components,parent,subtasks',
                 'maxResults' => $maxResults,
                 'startAt' => $startAt,
             ]);

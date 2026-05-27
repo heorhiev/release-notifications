@@ -49,7 +49,9 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
             $lines[] = $group['title'];
 
             foreach ($group['items'] as $item) {
-                $lines[] = '• ' . $item;
+                $lines[] = str_starts_with($item, '    ')
+                    ? $item
+                    : '• ' . $item;
             }
         }
 
@@ -80,8 +82,13 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
     private function groupIssuesByParent(array $issues): array
     {
         $groups = [];
+        $nestedSubTaskKeys = $this->collectNestedSubTaskKeys($issues);
 
         foreach ($issues as $issue) {
+            if (isset($nestedSubTaskKeys[$issue->key])) {
+                continue;
+            }
+
             $groupKey = $this->resolveGroupKey($issue);
 
             if (!isset($groups[$groupKey])) {
@@ -93,7 +100,7 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
                 ];
             }
 
-            $groups[$groupKey]['items'][] = $this->formatIssueLine($issue);
+            array_push($groups[$groupKey]['items'], ...$this->formatIssueLines($issue));
             $groups[$groupKey]['issues_count']++;
         }
 
@@ -121,6 +128,34 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
         );
 
         return array_values($groups);
+    }
+
+    /**
+     * @param array<int, ReleaseIssue> $issues
+     * @return array<string, bool>
+     */
+    private function collectNestedSubTaskKeys(array $issues): array
+    {
+        $issueKeys = [];
+        foreach ($issues as $issue) {
+            $issueKeys[$issue->key] = true;
+        }
+
+        $subTaskKeys = [];
+        foreach ($issues as $issue) {
+            if (strcasecmp($issue->issueType, 'Epic') === 0) {
+                continue;
+            }
+
+            foreach ($issue->subTasks as $subTask) {
+                $key = $subTask['key'] ?? '';
+                if ($key !== '' && isset($issueKeys[$key])) {
+                    $subTaskKeys[$key] = true;
+                }
+            }
+        }
+
+        return $subTaskKeys;
     }
 
     private function resolveGroupKey(ReleaseIssue $issue): string
@@ -152,9 +187,28 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
         return '*Tasks Without Epic*';
     }
 
-    private function formatIssueLine(ReleaseIssue $issue): string
+    /**
+     * @return array<int, string>
+     */
+    private function formatIssueLines(ReleaseIssue $issue): array
     {
-        return $this->formatIssueTitleLine($issue->summary, $issue->key, $issue->url);
+        if (strcasecmp($issue->issueType, 'Epic') === 0) {
+            return [$this->formatIssueTitleLine($issue->summary, $issue->key, $issue->url)];
+        }
+
+        $lines = $issue->subTasks === []
+            ? [$this->formatIssueTitleLine($issue->summary, $issue->key, $issue->url)]
+            : [$this->formatLinkedIssueTitleLine($issue->summary, $issue->key, $issue->url)];
+
+        foreach ($issue->subTasks as $subTask) {
+            $lines[] = '    ◦ ' . $this->formatIssueTitleLine(
+                $subTask['summary'] ?? '',
+                $subTask['key'] ?? '',
+                $subTask['url'] ?? $this->buildIssueUrl($subTask['key'] ?? '')
+            );
+        }
+
+        return $lines;
     }
 
     private function formatLinkedGroupTitleLine(string $summary, string $url): string
@@ -169,6 +223,13 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
         $summary = trim($summary) !== '' ? trim($summary) : 'Без названия';
 
         return sprintf('%s (<%s|%s>)', $summary, trim($url), trim($key));
+    }
+
+    private function formatLinkedIssueTitleLine(string $summary, string $key, string $url): string
+    {
+        $summary = trim($summary) !== '' ? trim($summary) : 'Без названия';
+
+        return sprintf('*<%s|%s>*', trim($url), $summary);
     }
 
     private function buildIssueUrl(string $issueKey): string

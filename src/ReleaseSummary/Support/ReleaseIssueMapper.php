@@ -47,7 +47,8 @@ final class ReleaseIssueMapper
             labels: $this->stringList($fields['labels'] ?? []),
             components: $this->extractComponentNames($fields['components'] ?? []),
             parentKey: $this->nestedField($fields, ['parent', 'key']),
-            parentSummary: $this->nestedField($fields, ['parent', 'fields', 'summary'])
+            parentSummary: $this->nestedField($fields, ['parent', 'fields', 'summary']),
+            subTasks: $this->extractSubTasks($fields['subtasks'] ?? [])
         );
     }
 
@@ -101,6 +102,43 @@ final class ReleaseIssueMapper
         }
 
         return array_values(array_unique($result));
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<int, array{key:string,summary:string,url:string,status:string,issueType:string}>
+     */
+    private function extractSubTasks(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $result = [];
+        $seen = [];
+
+        foreach ($value as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $key = trim((string) ($item['key'] ?? ''));
+            if ($key === '' || isset($seen[$key])) {
+                continue;
+            }
+
+            $fields = is_array($item['fields'] ?? null) ? $item['fields'] : [];
+            $result[] = [
+                'key' => $key,
+                'summary' => trim((string) ($fields['summary'] ?? '')),
+                'url' => $this->buildIssueUrl($key),
+                'status' => $this->nestedField($fields, ['status', 'name']) ?? 'Unknown',
+                'issueType' => $this->nestedField($fields, ['issuetype', 'name']) ?? 'Sub-task',
+            ];
+            $seen[$key] = true;
+        }
+
+        return $result;
     }
 
     /**
