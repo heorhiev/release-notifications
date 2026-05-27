@@ -102,7 +102,7 @@ final class IssueFormatter
     {
         $summaryText = $this->normalizeSlackText($summaryText);
 
-        return str_contains($summaryText, '(<http') || str_contains($summaryText, '(<https');
+        return preg_match('/<https?:\/\/[^>|]+\\|[^>]+>/u', $summaryText) === 1;
     }
 
     private function normalizeSlackText(string $text): string

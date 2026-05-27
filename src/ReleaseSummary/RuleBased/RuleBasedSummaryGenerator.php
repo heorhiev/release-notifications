@@ -115,12 +115,12 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
                     return -1;
                 }
 
-                if ($left['group_key'] === 'ADSY-14403') {
-                    return $right['group_key'] === '__no_epic__' ? -1 : 1;
+                if (strcasecmp(self::extractGroupTitleLabel($left['title']), 'Bugs') === 0) {
+                    return 1;
                 }
 
-                if ($right['group_key'] === 'ADSY-14403') {
-                    return $left['group_key'] === '__no_epic__' ? 1 : -1;
+                if (strcasecmp(self::extractGroupTitleLabel($right['title']), 'Bugs') === 0) {
+                    return -1;
                 }
 
                 return strcasecmp($left['title'], $right['title']);
@@ -218,11 +218,21 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
         return sprintf('*<%s|%s>*', trim($url), $summary);
     }
 
+    private static function extractGroupTitleLabel(string $title): string
+    {
+        $title = trim($title, "* \t\n\r\0\x0B");
+        if (preg_match('/^<[^|>]+\\|(.+)>$/', $title, $matches) === 1) {
+            return trim($matches[1]);
+        }
+
+        return trim($title);
+    }
+
     private function formatIssueTitleLine(string $summary, string $key, string $url): string
     {
         $summary = trim($summary) !== '' ? trim($summary) : 'Без названия';
 
-        return sprintf('%s (<%s|%s>)', $summary, trim($url), trim($key));
+        return sprintf('<%s|%s>', trim($url), $summary);
     }
 
     private function formatLinkedIssueTitleLine(string $summary, string $key, string $url): string
