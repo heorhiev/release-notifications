@@ -96,11 +96,29 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
                     'group_key' => $groupKey,
                     'title' => $this->formatGroupTitle($issue),
                     'items' => [],
+                    'containers' => [],
                     'issues_count' => 0,
                 ];
             }
 
-            array_push($groups[$groupKey]['items'], ...$this->formatIssueLines($issue));
+            if ($issue->containerParentKey !== null && $issue->containerParentKey !== '') {
+                if (!isset($groups[$groupKey]['containers'][$issue->containerParentKey])) {
+                    $groups[$groupKey]['items'][] = $this->formatLinkedIssueTitleLine(
+                        $issue->containerParentSummary ?: 'Без названия',
+                        $issue->containerParentKey,
+                        $issue->containerParentUrl ?: $this->buildIssueUrl($issue->containerParentKey)
+                    );
+                    $groups[$groupKey]['containers'][$issue->containerParentKey] = true;
+                }
+
+                $groups[$groupKey]['items'][] = '    ◦ ' . $this->formatIssueTitleLine(
+                    $issue->summary,
+                    $issue->key,
+                    $issue->url
+                );
+            } else {
+                array_push($groups[$groupKey]['items'], ...$this->formatIssueLines($issue));
+            }
             $groups[$groupKey]['issues_count']++;
         }
 

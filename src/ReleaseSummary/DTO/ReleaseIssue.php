@@ -23,7 +23,10 @@ final class ReleaseIssue
         public readonly array $components,
         public readonly ?string $parentKey = null,
         public readonly ?string $parentSummary = null,
-        public readonly array $subTasks = []
+        public readonly array $subTasks = [],
+        public readonly ?string $containerParentKey = null,
+        public readonly ?string $containerParentSummary = null,
+        public readonly ?string $containerParentUrl = null
     ) {
     }
 }

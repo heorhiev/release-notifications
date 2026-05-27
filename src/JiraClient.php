@@ -6,6 +6,8 @@ namespace App;
 
 final class JiraClient
 {
+    private const ISSUE_FIELDS = 'summary,description,issuetype,status,assignee,labels,components,parent,subtasks';
+
     private HttpClient $httpClient;
     private string $baseUrl;
     private string $email;
@@ -51,7 +53,7 @@ final class JiraClient
         do {
             $query = http_build_query([
                 'jql' => $jql,
-                'fields' => 'summary,description,issuetype,status,assignee,labels,components,parent,subtasks',
+                'fields' => self::ISSUE_FIELDS,
                 'maxResults' => $maxResults,
                 'startAt' => $startAt,
             ]);
@@ -63,6 +65,8 @@ final class JiraClient
             $startAt += count($pageIssues);
             $total = (int) ($decoded['total'] ?? count($issues));
         } while ($startAt < $total && $pageIssues !== []);
+
+        $issues = $this->attachParentHierarchy($issues);
 
         return [
             'issues' => $issues,
@@ -219,6 +223,130 @@ final class JiraClient
     private function escapeJqlValue(string $value): string
     {
         return str_replace('"', '\\"', $value);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $issues
+     * @return array<int, array<string, mixed>>
+     */
+    private function attachParentHierarchy(array $issues): array
+    {
+        $issueKeys = [];
+        foreach ($issues as $issue) {
+            $key = trim((string) ($issue['key'] ?? ''));
+            if ($key !== '') {
+                $issueKeys[$key] = true;
+            }
+        }
+
+        $missingParentKeys = [];
+        foreach ($issues as $issue) {
+            $fields = is_array($issue['fields'] ?? null) ? $issue['fields'] : [];
+            $parent = is_array($fields['parent'] ?? null) ? $fields['parent'] : null;
+            if ($parent === null || $this->isEpicIssue($parent)) {
+                continue;
+            }
+
+            $parentKey = trim((string) ($parent['key'] ?? ''));
+            if ($parentKey !== '' && !isset($issueKeys[$parentKey])) {
+                $missingParentKeys[$parentKey] = true;
+            }
+        }
+
+        if ($missingParentKeys === []) {
+            return $issues;
+        }
+
+        $parentIssues = $this->searchIssuesByKeys(array_keys($missingParentKeys));
+        if ($parentIssues === []) {
+            return $issues;
+        }
+
+        foreach ($issues as $index => $issue) {
+            $fields = is_array($issue['fields'] ?? null) ? $issue['fields'] : [];
+            $parent = is_array($fields['parent'] ?? null) ? $fields['parent'] : null;
+            $parentKey = trim((string) ($parent['key'] ?? ''));
+            $parentIssue = $parentKey !== '' ? ($parentIssues[$parentKey] ?? null) : null;
+            if (!is_array($parentIssue)) {
+                continue;
+            }
+
+            $parentFields = is_array($parentIssue['fields'] ?? null) ? $parentIssue['fields'] : [];
+            $grandParent = is_array($parentFields['parent'] ?? null) ? $parentFields['parent'] : null;
+            if ($grandParent === null || !$this->isEpicIssue($grandParent)) {
+                continue;
+            }
+
+            $fields['_release_container_parent'] = [
+                'key' => $parentKey,
+                'fields' => [
+                    'summary' => $parentFields['summary'] ?? '',
+                    'status' => $parentFields['status'] ?? null,
+                    'issuetype' => $parentFields['issuetype'] ?? null,
+                ],
+            ];
+            $fields['parent'] = $grandParent;
+            $issues[$index]['fields'] = $fields;
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param array<int, string> $issueKeys
+     * @return array<string, array<string, mixed>>
+     */
+    private function searchIssuesByKeys(array $issueKeys): array
+    {
+        $issueKeys = array_values(array_unique(array_filter(
+            array_map(static fn (string $key): string => trim($key), $issueKeys),
+            static fn (string $key): bool => $key !== ''
+        )));
+
+        if ($issueKeys === []) {
+            return [];
+        }
+
+        $issues = [];
+        foreach (array_chunk($issueKeys, 50) as $chunk) {
+            $quotedKeys = array_map(
+                fn (string $key): string => '"' . $this->escapeJqlValue($key) . '"',
+                $chunk
+            );
+            $jql = sprintf('key IN (%s)', implode(',', $quotedKeys));
+            $query = http_build_query([
+                'jql' => $jql,
+                'fields' => self::ISSUE_FIELDS,
+                'maxResults' => count($chunk),
+                'startAt' => 0,
+            ]);
+
+            $decoded = $this->requestJson('/rest/api/3/search/jql?' . $query);
+            foreach (($decoded['issues'] ?? []) as $issue) {
+                if (!is_array($issue)) {
+                    continue;
+                }
+
+                $key = trim((string) ($issue['key'] ?? ''));
+                if ($key !== '') {
+                    $issues[$key] = $issue;
+                }
+            }
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param array<string, mixed> $issue
+     */
+    private function isEpicIssue(array $issue): bool
+    {
+        $fields = is_array($issue['fields'] ?? null) ? $issue['fields'] : [];
+        $issueType = is_array($fields['issuetype'] ?? null) ? $fields['issuetype'] : [];
+
+        return strcasecmp(trim((string) ($issueType['name'] ?? '')), 'Эпик') === 0
+            || strcasecmp(trim((string) ($issueType['name'] ?? '')), 'Epic') === 0;
     }
 
     /**

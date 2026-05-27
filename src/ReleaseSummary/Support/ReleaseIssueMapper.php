@@ -48,7 +48,12 @@ final class ReleaseIssueMapper
             components: $this->extractComponentNames($fields['components'] ?? []),
             parentKey: $this->nestedField($fields, ['parent', 'key']),
             parentSummary: $this->nestedField($fields, ['parent', 'fields', 'summary']),
-            subTasks: $this->extractSubTasks($fields['subtasks'] ?? [])
+            subTasks: $this->extractSubTasks($fields['subtasks'] ?? []),
+            containerParentKey: $this->nestedField($fields, ['_release_container_parent', 'key']),
+            containerParentSummary: $this->nestedField($fields, ['_release_container_parent', 'fields', 'summary']),
+            containerParentUrl: $this->buildNullableIssueUrl(
+                $this->nestedField($fields, ['_release_container_parent', 'key'])
+            )
         );
     }
 
@@ -211,5 +216,14 @@ final class ReleaseIssueMapper
         return $issueKey === ''
             ? $this->jiraBrowseBaseUrl
             : $this->jiraBrowseBaseUrl . rawurlencode($issueKey);
+    }
+
+    private function buildNullableIssueUrl(?string $issueKey): ?string
+    {
+        if ($issueKey === null || trim($issueKey) === '') {
+            return null;
+        }
+
+        return $this->buildIssueUrl($issueKey);
     }
 }
