@@ -50,6 +50,11 @@ final class ReleaseReportService
             if ($releaseCheckMessage !== '') {
                 $this->slackClient->sendMessage($releaseCheckMessage);
             }
+
+            $taskCheckMessage = $this->issueFormatter->formatTaskCheckMessage($release, $nextRelease);
+            if ($taskCheckMessage !== '') {
+                $this->slackClient->sendMessage($taskCheckMessage);
+            }
         }
 
         $reportRunId = $this->reportRunRepository->createRun([

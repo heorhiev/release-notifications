@@ -8,6 +8,7 @@ PHP 8.3 сервис для сбора задач Jira по релизу (`fixVe
 - строит только rule-based summary без AI
 - отправляет в Slack только summary релиза
 - дополнительно отправляет release-check сообщение из `SLACK_RELEASE_CHECK_TEXT`
+- дополнительно отправляет task-check сообщение из `SLACK_TASK_CHECK_TEXT`
 - сохраняет run, summary и snapshot задач в PostgreSQL
 - отдает debug endpoints для Jira, summary и истории запусков
 
@@ -80,9 +81,13 @@ Slack:
 - `SLACK_ICON_EMOJI`
 - `SLACK_MENTION_USER_IDS`
 - `SLACK_RELEASE_CHECK_TEXT`
+- `SLACK_TASK_CHECK_TEXT`
 
-`SLACK_RELEASE_CHECK_TEXT` поддерживает плейсхолдеры `{release}` и `{next_release}`.
-Перед отправкой они заменяются на имя текущего релиза и следующий после него Jira release по сортировке имени.
+`SLACK_RELEASE_CHECK_TEXT` и `SLACK_TASK_CHECK_TEXT` поддерживают плейсхолдеры:
+
+- `{release}` — имя текущего релиза.
+- `{next_release}` — следующий после текущего Jira release по сортировке имени.
+- `{url_user_tasks}` — ссылка на Jira list с задачами текущего пользователя для текущего релиза.
 
 Пример Slack-ссылки:
 
@@ -193,5 +198,6 @@ curl "http://localhost:8080/debug/report-runs?limit=20"
 
 1. `Release: <name>` и rule-based summary.
 2. Отдельное release-check сообщение из `SLACK_RELEASE_CHECK_TEXT`, если оно задано.
+3. Отдельное task-check сообщение из `SLACK_TASK_CHECK_TEXT`, если оно задано.
 
 `Issue Details` в Slack не отправляется.

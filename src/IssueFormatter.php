@@ -6,12 +6,16 @@ namespace App;
 
 final class IssueFormatter
 {
+    private string $jiraBaseUrl;
     private string $jiraBrowseBaseUrl;
+    private string $jiraProjectKey;
 
     public function __construct()
     {
         $jiraBaseUrl = rtrim(Env::get('JIRA_BASE_URL', 'https://linksmanagement.atlassian.net') ?? 'https://linksmanagement.atlassian.net', '/');
+        $this->jiraBaseUrl = $jiraBaseUrl;
         $this->jiraBrowseBaseUrl = $jiraBaseUrl . '/browse/';
+        $this->jiraProjectKey = trim(Env::get('JIRA_PROJECT_KEY', 'ADSY') ?? 'ADSY');
     }
 
     public function formatSummarySlackMessage(string $release, string $summaryText): string
@@ -26,13 +30,20 @@ final class IssueFormatter
     public function formatReleaseCheckMessage(?string $releaseName = null, ?string $nextReleaseName = null): string
     {
         $checkText = $this->normalizeEnvMultilineText(Env::get('SLACK_RELEASE_CHECK_TEXT', '') ?? '');
-        $checkText = $this->applyReleaseCheckPlaceholders($checkText, $releaseName, $nextReleaseName);
+        $checkText = $this->applyReleasePlaceholders($checkText, $releaseName, $nextReleaseName);
         $mentions = $this->formatSlackMentions(Env::get('SLACK_MENTION_USER_IDS', '') ?? '');
 
         return trim(implode("\n\n", array_filter([$checkText, $mentions], static fn (string $part): bool => $part !== '')));
     }
 
-    private function applyReleaseCheckPlaceholders(string $text, ?string $releaseName, ?string $nextReleaseName): string
+    public function formatTaskCheckMessage(?string $releaseName = null, ?string $nextReleaseName = null): string
+    {
+        $checkText = $this->normalizeEnvMultilineText(Env::get('SLACK_TASK_CHECK_TEXT', '') ?? '');
+
+        return $this->applyReleasePlaceholders($checkText, $releaseName, $nextReleaseName);
+    }
+
+    private function applyReleasePlaceholders(string $text, ?string $releaseName, ?string $nextReleaseName): string
     {
         $releaseName = trim((string) $releaseName);
         $nextReleaseName = trim((string) $nextReleaseName);
@@ -40,7 +51,25 @@ final class IssueFormatter
         return strtr($text, [
             '{release}' => $releaseName,
             '{next_release}' => $nextReleaseName,
+            '{url_user_tasks}' => $this->buildUserTasksUrl($releaseName),
         ]);
+    }
+
+    private function buildUserTasksUrl(string $releaseName): string
+    {
+        $projectKey = $this->jiraProjectKey !== '' ? $this->jiraProjectKey : 'ADSY';
+        $jql = sprintf(
+            "project = \"%s\"\nAND fixversion = \"%s\"\nAND reporter = currentUser()\nORDER BY key DESC, Rank DESC",
+            $projectKey,
+            $releaseName
+        );
+
+        return sprintf(
+            '%s/jira/software/c/projects/%s/list?jql=%s',
+            $this->jiraBaseUrl,
+            rawurlencode($projectKey),
+            rawurlencode($jql)
+        );
     }
 
     private function formatSlackSummaryBody(string $summaryText): string

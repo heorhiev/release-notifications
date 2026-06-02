@@ -73,11 +73,15 @@ try {
     $formatter = new IssueFormatter();
     $message = $formatter->formatSummarySlackMessage($releaseName, $summaryText);
     $releaseCheckMessage = $formatter->formatReleaseCheckMessage($releaseName, $nextRelease);
+    $taskCheckMessage = $formatter->formatTaskCheckMessage($releaseName, $nextRelease);
 
     if ($preview) {
         fwrite(STDOUT, $message . PHP_EOL);
         if ($releaseCheckMessage !== '') {
             fwrite(STDOUT, "\n---\n\n" . $releaseCheckMessage . PHP_EOL);
+        }
+        if ($taskCheckMessage !== '') {
+            fwrite(STDOUT, "\n---\n\n" . $taskCheckMessage . PHP_EOL);
         }
         exit(0);
     }
@@ -86,6 +90,9 @@ try {
     $slackClient->sendMessage($message, $releaseUrl !== '' ? $releaseUrl : null);
     if ($releaseCheckMessage !== '') {
         $slackClient->sendMessage($releaseCheckMessage);
+    }
+    if ($taskCheckMessage !== '') {
+        $slackClient->sendMessage($taskCheckMessage);
     }
     $repository->markSlackSent((int) $run['id']);
 

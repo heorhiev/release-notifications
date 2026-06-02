@@ -18,8 +18,17 @@ Release-check текст задается переменной:
 SLACK_RELEASE_CHECK_TEXT="---\n*Dear Team*, проверьте все ли ваши задачи попали в релиз {release}."
 ```
 
-Поддерживаются плейсхолдеры `{release}` и `{next_release}`.
-`{next_release}` заменяется на следующий после текущего Jira release по сортировке имени.
+Task-check текст задается переменной:
+
+```env
+SLACK_TASK_CHECK_TEXT='Уважаемые постановщики задач!)\n\nПожалуйста, проверьте <{url_user_tasks}|свои задачи>:\n- если всё в порядке - переведите задачу в статус "Выполнено";\n- если есть замечания - верните задачу на доработку\n\nПосле проверки задач, пожалуйста, отпишитесь под этим сообщением\n\nСпасибо!)'
+```
+
+В `SLACK_RELEASE_CHECK_TEXT` и `SLACK_TASK_CHECK_TEXT` поддерживаются плейсхолдеры:
+
+- `{release}` — имя текущего релиза.
+- `{next_release}` — следующий после текущего Jira release по сортировке имени.
+- `{url_user_tasks}` — ссылка на Jira list с задачами текущего пользователя для текущего релиза.
 
 ## Docker
 
@@ -121,6 +130,7 @@ docker compose exec -T jira-release-bot php bin/send-release-report.php "2026 - 
 
 - Slack-сообщение с release summary
 - release-check сообщение из `SLACK_RELEASE_CHECK_TEXT`, если оно задано
+- task-check сообщение из `SLACK_TASK_CHECK_TEXT`, если оно задано
 
 `send-release-report.php` не ходит в Jira и не строит новый summary. Он отправляет уже сохраненный `summary_text`.
 
