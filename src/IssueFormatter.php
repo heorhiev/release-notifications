@@ -27,23 +27,45 @@ final class IssueFormatter
         return sprintf("*Release: %s*\n\n%s", $release, $formattedSummary);
     }
 
-    public function formatReleaseCheckMessage(?string $releaseName = null, ?string $nextReleaseName = null): string
+    /**
+     * @param array<int, string> $developerSlackUserIds
+     */
+    public function formatDevelopersCheckMessage(?string $releaseName = null, ?string $nextReleaseName = null, array $developerSlackUserIds = []): string
     {
-        $checkText = $this->normalizeEnvMultilineText(Env::get('SLACK_RELEASE_CHECK_TEXT', '') ?? '');
-        $checkText = $this->applyReleasePlaceholders($checkText, $releaseName, $nextReleaseName);
-        $mentions = $this->formatSlackMentions(Env::get('SLACK_MENTION_USER_IDS', '') ?? '');
+        $checkText = $this->normalizeEnvMultilineText(Env::get('SLACK_DEVELOPERS_CHECK_TEXT', '') ?? '');
+        if ($checkText === '') {
+            return '';
+        }
+
+        return $this->applyReleasePlaceholders(
+            $checkText,
+            $releaseName,
+            $nextReleaseName,
+            $this->formatSlackMentions(implode(' ', $developerSlackUserIds))
+        );
+    }
+
+    /**
+     * @param array<int, string> $slackUserIds
+     */
+    public function formatReportersCheckMessage(?string $releaseName = null, ?string $nextReleaseName = null, array $slackUserIds = []): string
+    {
+        $checkText = $this->normalizeEnvMultilineText(Env::get('SLACK_REPORTERS_CHECK_TEXT', '') ?? '');
+        if ($checkText === '') {
+            return '';
+        }
+
+        $mentions = $this->formatSlackMentions(implode(' ', $slackUserIds));
+        $checkText = $this->applyReleasePlaceholders($checkText, $releaseName, $nextReleaseName, '', $mentions);
+
+        if (str_contains($checkText, $mentions) || $mentions === '') {
+            return trim($checkText);
+        }
 
         return trim(implode("\n\n", array_filter([$checkText, $mentions], static fn (string $part): bool => $part !== '')));
     }
 
-    public function formatTaskCheckMessage(?string $releaseName = null, ?string $nextReleaseName = null): string
-    {
-        $checkText = $this->normalizeEnvMultilineText(Env::get('SLACK_TASK_CHECK_TEXT', '') ?? '');
-
-        return $this->applyReleasePlaceholders($checkText, $releaseName, $nextReleaseName);
-    }
-
-    private function applyReleasePlaceholders(string $text, ?string $releaseName, ?string $nextReleaseName): string
+    private function applyReleasePlaceholders(string $text, ?string $releaseName, ?string $nextReleaseName, string $developers = '', string $reporters = ''): string
     {
         $releaseName = trim((string) $releaseName);
         $nextReleaseName = trim((string) $nextReleaseName);
@@ -52,6 +74,8 @@ final class IssueFormatter
             '{release}' => $releaseName,
             '{next_release}' => $nextReleaseName,
             '{url_user_tasks}' => $this->buildUserTasksUrl($releaseName),
+            '{developers}' => $developers,
+            '{reporters}' => $reporters,
         ]);
     }
 

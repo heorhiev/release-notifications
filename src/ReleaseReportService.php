@@ -13,19 +13,22 @@ final class ReleaseReportService
     private IssueFormatter $issueFormatter;
     private ReportRunRepository $reportRunRepository;
     private SummaryService $summaryService;
+    private EmployeeRepository $employeeRepository;
 
     public function __construct(
         ?JiraClient $jiraClient = null,
         ?SlackClient $slackClient = null,
         ?IssueFormatter $issueFormatter = null,
         ?ReportRunRepository $reportRunRepository = null,
-        ?SummaryService $summaryService = null
+        ?SummaryService $summaryService = null,
+        ?EmployeeRepository $employeeRepository = null
     ) {
         $this->jiraClient = $jiraClient ?? new JiraClient();
         $this->slackClient = $slackClient ?? new SlackClient();
         $this->issueFormatter = $issueFormatter ?? new IssueFormatter();
         $this->reportRunRepository = $reportRunRepository ?? new ReportRunRepository();
         $this->summaryService = $summaryService ?? new SummaryService();
+        $this->employeeRepository = $employeeRepository ?? new EmployeeRepository();
     }
 
     /**
@@ -45,15 +48,23 @@ final class ReleaseReportService
 
         if (!$dryRun) {
             $this->slackClient->sendMessage($message, $releaseUrl);
-            $releaseCheckMessage = $this->issueFormatter->formatReleaseCheckMessage($release, $nextRelease);
+            $developersCheckMessage = $this->issueFormatter->formatDevelopersCheckMessage(
+                $release,
+                $nextRelease,
+                $this->employeeRepository->findSlackUserIdsByRole(EmployeeRole::DEVELOPER)
+            );
 
-            if ($releaseCheckMessage !== '') {
-                $this->slackClient->sendMessage($releaseCheckMessage);
+            if ($developersCheckMessage !== '') {
+                $this->slackClient->sendMessage($developersCheckMessage);
             }
 
-            $taskCheckMessage = $this->issueFormatter->formatTaskCheckMessage($release, $nextRelease);
-            if ($taskCheckMessage !== '') {
-                $this->slackClient->sendMessage($taskCheckMessage);
+            $reportersCheckMessage = $this->issueFormatter->formatReportersCheckMessage(
+                $release,
+                $nextRelease,
+                $this->employeeRepository->findSlackUserIdsByJiraUserIds($this->extractReporterJiraUserIds($issues))
+            );
+            if ($reportersCheckMessage !== '') {
+                $this->slackClient->sendMessage($reportersCheckMessage);
             }
         }
 
@@ -89,6 +100,27 @@ final class ReleaseReportService
         ];
 
         return $result;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $issues
+     * @return array<int, string>
+     */
+    private function extractReporterJiraUserIds(array $issues): array
+    {
+        $jiraUserIds = [];
+
+        foreach ($issues as $issue) {
+            $fields = is_array($issue['fields'] ?? null) ? $issue['fields'] : [];
+            $reporter = is_array($fields['reporter'] ?? null) ? $fields['reporter'] : [];
+            $accountId = trim((string) ($reporter['accountId'] ?? ''));
+
+            if ($accountId !== '') {
+                $jiraUserIds[] = $accountId;
+            }
+        }
+
+        return array_values(array_unique($jiraUserIds));
     }
 
     /**

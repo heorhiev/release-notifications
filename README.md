@@ -7,8 +7,8 @@ PHP 8.3 сервис для сбора задач Jira по релизу (`fixVe
 - получает задачи Jira по `fixVersion`
 - строит только rule-based summary без AI
 - отправляет в Slack только summary релиза
-- дополнительно отправляет release-check сообщение из `SLACK_RELEASE_CHECK_TEXT`
-- дополнительно отправляет task-check сообщение из `SLACK_TASK_CHECK_TEXT`
+- дополнительно отправляет developers-check сообщение из `SLACK_DEVELOPERS_CHECK_TEXT`
+- дополнительно отправляет reporters-check сообщение из `SLACK_REPORTERS_CHECK_TEXT`
 - сохраняет run, summary и snapshot задач в PostgreSQL
 - отдает debug endpoints для Jira, summary и истории запусков
 
@@ -30,7 +30,7 @@ PHP 8.3 сервис для сбора задач Jira по релизу (`fixVe
 2. Сервис получает задачи Jira по `project + fixVersion`.
 3. Строит rule-based summary.
 4. Формирует Slack-сообщение только с summary.
-5. Если это не `dry_run`, отправляет summary и release-check сообщение в Slack.
+5. Если это не `dry_run`, отправляет summary и developers-check сообщение в Slack.
 6. Сохраняет run и snapshot задач в PostgreSQL.
 
 ## Структура
@@ -79,15 +79,25 @@ Slack:
 - `SLACK_CHANNEL`
 - `SLACK_USERNAME`
 - `SLACK_ICON_EMOJI`
-- `SLACK_MENTION_USER_IDS`
-- `SLACK_RELEASE_CHECK_TEXT`
-- `SLACK_TASK_CHECK_TEXT`
+- `SLACK_DEVELOPERS_CHECK_TEXT`
+- `SLACK_REPORTERS_CHECK_TEXT`
 
-`SLACK_RELEASE_CHECK_TEXT` и `SLACK_TASK_CHECK_TEXT` поддерживают плейсхолдеры:
+`SLACK_DEVELOPERS_CHECK_TEXT` и `SLACK_REPORTERS_CHECK_TEXT` поддерживают плейсхолдеры:
 
 - `{release}` — имя текущего релиза.
 - `{next_release}` — следующий после текущего Jira release по сортировке имени.
 - `{url_user_tasks}` — ссылка на Jira list с задачами текущего пользователя для текущего релиза.
+- `{developers}` — Slack-упоминания сотрудников с ролью `developer`.
+- `{reporters}` — Slack-упоминания авторов задач из релиза.
+
+`{developers}` используется в `SLACK_DEVELOPERS_CHECK_TEXT`. Список берется из таблицы `employees`, где `role = 1`.
+
+`{reporters}` используется в `SLACK_REPORTERS_CHECK_TEXT`. Автор определяется по Jira `reporter.accountId`, Slack ID берется из таблицы `employees`.
+
+```sql
+INSERT INTO employees (jira_user_id, slack_user_id, role)
+VALUES ('jira-account-id', 'U12345678', 1);
+```
 
 Пример Slack-ссылки:
 
@@ -197,7 +207,7 @@ curl "http://localhost:8080/debug/report-runs?limit=20"
 В Slack отправляется:
 
 1. `Release: <name>` и rule-based summary.
-2. Отдельное release-check сообщение из `SLACK_RELEASE_CHECK_TEXT`, если оно задано.
-3. Отдельное task-check сообщение из `SLACK_TASK_CHECK_TEXT`, если оно задано.
+2. Отдельное developers-check сообщение из `SLACK_DEVELOPERS_CHECK_TEXT`, если оно задано.
+3. Отдельное reporters-check сообщение из `SLACK_REPORTERS_CHECK_TEXT`, если оно задано.
 
 `Issue Details` в Slack не отправляется.

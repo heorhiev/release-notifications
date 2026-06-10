@@ -6,7 +6,7 @@ namespace App;
 
 final class JiraClient
 {
-    private const ISSUE_FIELDS = 'summary,description,issuetype,status,assignee,labels,components,parent,subtasks';
+    private const ISSUE_FIELDS = 'summary,description,issuetype,status,assignee,reporter,labels,components,parent,subtasks';
 
     private HttpClient $httpClient;
     private string $baseUrl;
