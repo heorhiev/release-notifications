@@ -55,7 +55,10 @@ final class IssueFormatter
             return '';
         }
 
-        $mentions = $this->formatSlackMentions(implode(' ', $slackUserIds));
+        $mentions = $this->formatSlackMentions(implode(' ', array_merge(
+            $slackUserIds,
+            $this->parseSlackUserIds(Env::get('SLACK_REPORTERS_EXTRA_USER_IDS', '') ?? '')
+        )));
         $checkText = $this->applyReleasePlaceholders($checkText, $releaseName, $nextReleaseName, '', $mentions);
 
         if (str_contains($checkText, $mentions) || $mentions === '') {
@@ -129,7 +132,7 @@ final class IssueFormatter
 
     private function formatSlackMentions(string $userIds): string
     {
-        $ids = preg_split('/[\s,;]+/', trim($userIds)) ?: [];
+        $ids = $this->parseSlackUserIds($userIds);
         $mentions = [];
 
         foreach ($ids as $id) {
@@ -147,8 +150,41 @@ final class IssueFormatter
 
         $mentions = array_values(array_unique($mentions));
         shuffle($mentions);
+        $mentions = $this->ensureMentionBefore($mentions, '<@U0B6HH47VCP>', '<@U08JC09FDK3>');
 
         return implode(' ', $mentions);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function parseSlackUserIds(string $userIds): array
+    {
+        $ids = preg_split('/[\s,;]+/', trim($userIds)) ?: [];
+
+        return array_values(array_filter(
+            array_map(static fn (string $id): string => trim($id), $ids),
+            static fn (string $id): bool => $id !== ''
+        ));
+    }
+
+    /**
+     * @param array<int, string> $mentions
+     * @return array<int, string>
+     */
+    private function ensureMentionBefore(array $mentions, string $beforeMention, string $afterMention): array
+    {
+        $beforeIndex = array_search($beforeMention, $mentions, true);
+        $afterIndex = array_search($afterMention, $mentions, true);
+
+        if ($beforeIndex === false || $afterIndex === false || $beforeIndex < $afterIndex) {
+            return $mentions;
+        }
+
+        $mentions[$beforeIndex] = $afterMention;
+        $mentions[$afterIndex] = $beforeMention;
+
+        return $mentions;
     }
 
     private function isPreformattedSlackSummary(string $summaryText): bool
