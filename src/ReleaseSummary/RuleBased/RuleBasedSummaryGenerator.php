@@ -82,6 +82,10 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
     private function groupIssuesByParent(array $issues): array
     {
         $groups = [];
+        $issueKeys = [];
+        foreach ($issues as $issue) {
+            $issueKeys[$issue->key] = true;
+        }
         $nestedSubTaskKeys = $this->collectNestedSubTaskKeys($issues);
 
         foreach ($issues as $issue) {
@@ -96,6 +100,7 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
                     'group_key' => $groupKey,
                     'title' => $this->formatGroupTitle($issue),
                     'items' => [],
+                    'entries' => [],
                     'containers' => [],
                     'issues_count' => 0,
                 ];
@@ -103,23 +108,56 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
 
             if ($issue->containerParentKey !== null && $issue->containerParentKey !== '') {
                 if (!isset($groups[$groupKey]['containers'][$issue->containerParentKey])) {
-                    $groups[$groupKey]['items'][] = $this->formatLinkedIssueTitleLine(
-                        $issue->containerParentSummary ?: 'Без названия',
-                        $issue->containerParentKey,
-                        $issue->containerParentUrl ?: $this->buildIssueUrl($issue->containerParentKey)
-                    );
-                    $groups[$groupKey]['containers'][$issue->containerParentKey] = true;
+                    $groups[$groupKey]['entries'][] = [
+                        'type' => 'container',
+                        'key' => $issue->containerParentKey,
+                    ];
+                    $groups[$groupKey]['containers'][$issue->containerParentKey] = [
+                        'title' => $this->formatLinkedIssueTitleLine(
+                            $issue->containerParentSummary ?: 'Без названия',
+                            $issue->containerParentKey,
+                            $issue->containerParentUrl ?: $this->buildIssueUrl($issue->containerParentKey)
+                        ),
+                        'items' => [],
+                    ];
                 }
 
-                $groups[$groupKey]['items'][] = '    ◦ ' . $this->formatIssueTitleLine(
+                $groups[$groupKey]['containers'][$issue->containerParentKey]['items'][] = '    ◦ ' . $this->formatIssueTitleLine(
                     $issue->summary,
                     $issue->key,
                     $issue->url
                 );
             } else {
-                array_push($groups[$groupKey]['items'], ...$this->formatIssueLines($issue));
+                $groups[$groupKey]['entries'][] = [
+                    'type' => 'lines',
+                    'lines' => $this->formatIssueLines($issue, $issueKeys),
+                ];
             }
             $groups[$groupKey]['issues_count']++;
+        }
+
+        foreach ($groups as $groupKey => $group) {
+            $items = [];
+            foreach ($group['entries'] as $entry) {
+                if (($entry['type'] ?? '') === 'container') {
+                    $containerKey = (string) ($entry['key'] ?? '');
+                    $container = $group['containers'][$containerKey] ?? null;
+                    if (!is_array($container)) {
+                        continue;
+                    }
+
+                    $items[] = $container['title'];
+                    array_push($items, ...$container['items']);
+                    continue;
+                }
+
+                if (($entry['type'] ?? '') === 'lines') {
+                    array_push($items, ...($entry['lines'] ?? []));
+                }
+            }
+
+            $groups[$groupKey]['items'] = $items;
+            unset($groups[$groupKey]['entries'], $groups[$groupKey]['containers']);
         }
 
         uasort(
@@ -208,17 +246,22 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
     /**
      * @return array<int, string>
      */
-    private function formatIssueLines(ReleaseIssue $issue): array
+    private function formatIssueLines(ReleaseIssue $issue, array $releaseIssueKeys): array
     {
         if (strcasecmp($issue->issueType, 'Epic') === 0) {
             return [$this->formatIssueTitleLine($issue->summary, $issue->key, $issue->url)];
         }
 
-        $lines = $issue->subTasks === []
+        $subTasks = array_values(array_filter(
+            $issue->subTasks,
+            static fn (array $subTask): bool => isset($releaseIssueKeys[$subTask['key'] ?? ''])
+        ));
+
+        $lines = $subTasks === []
             ? [$this->formatIssueTitleLine($issue->summary, $issue->key, $issue->url)]
             : [$this->formatLinkedIssueTitleLine($issue->summary, $issue->key, $issue->url)];
 
-        foreach ($issue->subTasks as $subTask) {
+        foreach ($subTasks as $subTask) {
             $lines[] = '    ◦ ' . $this->formatIssueTitleLine(
                 $subTask['summary'] ?? '',
                 $subTask['key'] ?? '',
