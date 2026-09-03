@@ -1,221 +1,228 @@
 # Command Reference
 
-Проект запускается в Docker Compose. Рабочие команды выполняются через сервис `jira-release-bot`.
+The project runs with Docker Compose. Application commands are executed in the `jira-release-bot` service.
 
 ## Slack Transport
 
-Основной режим:
+The default transport is an incoming webhook:
 
 ```env
 SLACK_TRANSPORT=incoming_webhook
 ```
 
-Также в коде есть `workflow_trigger`, если `SLACK_WEBHOOK_URL` указывает на Slack workflow trigger URL.
+The `workflow_trigger` transport is also supported when `SLACK_WEBHOOK_URL` points to a Slack workflow trigger URL.
 
-Release-check текст задается переменной:
-
-```env
-SLACK_DEVELOPERS_CHECK_TEXT="---\n*Dear Team*, проверьте все ли ваши задачи попали в релиз {release}."
-```
-
-Reporters-check текст задается переменной:
+The developer-check and reporter-check messages are configured with:
 
 ```env
-SLACK_REPORTERS_CHECK_TEXT='Уважаемые постановщики задач!)\n\nПожалуйста, проверьте <{url_user_tasks}|свои задачи>:\n- если всё в порядке - переведите задачу в статус "Выполнено";\n- если есть замечания - верните задачу на доработку\n\nПосле проверки задач, пожалуйста, отпишитесь под этим сообщением\n\nСпасибо!)'
+SLACK_DEVELOPERS_CHECK_TEXT="---\n*Dear Team*, please check that all your tasks are included in release {release}."
+SLACK_REPORTERS_CHECK_TEXT="*Dear requesters!)*\n\nPlease check <{url_user_tasks}|your tasks>."
 ```
 
-В `SLACK_DEVELOPERS_CHECK_TEXT` и `SLACK_REPORTERS_CHECK_TEXT` поддерживаются плейсхолдеры:
+Both templates support these placeholders:
 
-- `{release}` — имя текущего релиза.
-- `{next_release}` — следующий после текущего Jira release по сортировке имени.
-- `{url_user_tasks}` — ссылка на Jira list с задачами текущего пользователя для текущего релиза.
-- `{developers}` — Slack-упоминания сотрудников с ролью `developer`.
-- `{reporters}` — Slack-упоминания авторов задач из релиза.
+- `{release}`: current Jira release name.
+- `{next_release}`: next Jira release by natural name ordering.
+- `{url_user_tasks}`: Jira list URL for the current user's issues in the release.
+- `{developers}`: Slack mentions for employees with `role = 1`.
+- `{reporters}`: Slack mentions for reporters found in the release issues.
 
-`{developers}` используется в `SLACK_DEVELOPERS_CHECK_TEXT`. Список берется из таблицы `employees`, где `role = 1`.
+Use Slack mrkdwn syntax, such as `*bold text*` and `<https://example.com|link text>`. When a template begins with `---`, the formatter adds a blank line before the following paragraph.
 
-`{reporters}` используется в `SLACK_REPORTERS_CHECK_TEXT`. Связка хранится в таблице `employees`: `jira_user_id` — Jira `reporter.accountId`, `slack_user_id` — Slack user ID без `<@...>`.
+## Employee and Epic Priorities
+
+Jira-to-Slack mappings are stored in `employees`:
 
 ```sql
-INSERT INTO employees (jira_user_id, slack_user_id, role)
-VALUES ('jira-account-id', 'U12345678', 1);
+INSERT INTO employees (jira_user_id, slack_user_id, role, priority)
+VALUES ('jira-account-id', 'U12345678', 1, 10);
 ```
+
+Higher employee priorities are mentioned first. Equal priorities are ordered by Slack user ID. The allowed priority range is `0..255`.
+
+Epic ordering is configured through the `epics` table:
+
+```sql
+INSERT INTO epics (jira_key, priority)
+VALUES ('PROJ-123', 0)
+ON CONFLICT (jira_key)
+DO UPDATE SET priority = EXCLUDED.priority, updated_at = NOW();
+```
+
+Higher epic priorities are displayed first. Epics not present in the table use priority `1`; equal priorities are ordered alphabetically. The allowed range is `0..255`.
 
 ## Docker
 
-### Первый запуск
+Build and start the stack:
 
 ```bash
 docker compose up --build
 ```
 
-### Запуск в фоне
+Start an already built stack in the background:
 
 ```bash
 docker compose up -d
 ```
 
-### Состояние контейнеров
+Check container status and application logs:
 
 ```bash
 docker compose ps
-```
-
-### Логи приложения
-
-```bash
 docker compose logs --tail=80 jira-release-bot
 ```
 
-### Остановка
+Stop the stack:
 
 ```bash
 docker compose down
 ```
 
-## Миграции
+## Migrations
+
+Apply pending SQL migrations after PostgreSQL is healthy:
 
 ```bash
 docker compose exec jira-release-bot php bin/migrate.php
 ```
 
-Команда применяет новые SQL-миграции из [migrations](/Users/mac/dev/adsy/bot/migrations).
+Migration files are read from [migrations](migrations), and already applied versions are skipped.
 
-## Сбор Отчета
+## Tests
 
-### Конкретный релиз
+Run unit tests and PostgreSQL repository integration tests:
 
 ```bash
-docker compose exec -T jira-release-bot php bin/release-report.php "2026 - 6"
+docker compose --profile test run --rm tests
 ```
 
-Что делает:
+The test service uses an isolated temporary PostgreSQL database. Stop it after the run with:
 
-- получает задачи Jira по `fixVersion`
-- строит rule-based summary
-- сохраняет run в PostgreSQL
-- сохраняет snapshot задач в `report_run_issues`
-- не отправляет сообщение в Slack
+```bash
+docker compose --profile test stop postgres-test
+```
 
-### Последний релиз Jira
+## Build and Save a Report
+
+Build a report for a specific Jira release:
+
+```bash
+docker compose exec -T jira-release-bot php bin/release-report.php "2026 - 15"
+```
+
+Build a report for the latest Jira release:
 
 ```bash
 docker compose exec -T jira-release-bot php bin/release-report.php
 ```
 
-или явно:
+or explicitly:
 
 ```bash
 docker compose exec -T jira-release-bot php bin/release-report.php --latest
 ```
 
-Других режимов summary нет. CLI не поддерживает `--summary-mode`, `--summary-only`, `--with-department-groups` и `--no-description`.
+The command:
 
-## Отправка Сохраненного Summary
+- fetches Jira issues by `fixVersion`;
+- builds a deterministic rule-based summary;
+- stores the report run in PostgreSQL;
+- stores issue snapshots in `report_run_issues`;
+- does not send anything to Slack.
 
-### Последний unsent run
+Jira release names must match exactly, including spaces. The CLI does not support AI summary modes, department grouping, or a separate issue-details message.
+
+## Preview and Send a Saved Report
+
+Send the latest unsent report:
 
 ```bash
 docker compose exec -T jira-release-bot php bin/send-release-report.php
 ```
 
-### Последний unsent run по релизу
+Send the latest unsent report for a release:
 
 ```bash
-docker compose exec -T jira-release-bot php bin/send-release-report.php "2026 - 6"
+docker compose exec -T jira-release-bot php bin/send-release-report.php "2026 - 15"
 ```
 
-### Конкретный run
+Send a specific report run:
 
 ```bash
-docker compose exec -T jira-release-bot php bin/send-release-report.php --run-id=12
+docker compose exec -T jira-release-bot php bin/send-release-report.php --run-id=65
 ```
 
-### Preview без отправки
+Preview a specific run without sending it:
 
 ```bash
-docker compose exec -T jira-release-bot php bin/send-release-report.php "2026 - 6" --preview
+docker compose exec -T jira-release-bot php bin/send-release-report.php --run-id=65 --preview
 ```
 
-Что отправляет:
+The command sends up to three Slack messages:
 
-- Slack-сообщение с release summary
-- developers-check сообщение из `SLACK_DEVELOPERS_CHECK_TEXT`, если оно задано
-- reporters-check сообщение из `SLACK_REPORTERS_CHECK_TEXT`, если оно задано
+1. The saved release summary.
+2. The developer-check message, when `SLACK_DEVELOPERS_CHECK_TEXT` is configured.
+3. The reporter-check message, when `SLACK_REPORTERS_CHECK_TEXT` is configured.
 
-`send-release-report.php` не ходит в Jira и не строит новый summary. Он отправляет уже сохраненный `summary_text`.
+It reuses the saved summary and issue snapshots instead of rebuilding them. It may query Jira project versions to resolve a missing release URL and determine the next release name. After a successful send, the report run is marked as sent.
 
 ## HTTP API
 
-### `POST /release-report`
+### Health Check
+
+```bash
+curl http://localhost:8080/health
+```
+
+### Build or Send a Report
+
+`POST /release-report` builds and stores a report. Set `dry_run` to `false` to send it to Slack in the same request.
 
 ```bash
 curl -X POST http://localhost:8080/release-report \
   -H "Content-Type: application/json" \
   -d '{
-    "release": "2026 - 6",
+    "release": "2026 - 15",
     "dry_run": true
   }'
 ```
 
-Поля:
+Request fields:
 
-- `release` — имя Jira release / `fixVersion`
-- `latest_release` — взять последний релиз Jira
-- `dry_run` — если `true`, Slack-отправки не будет
+- `release`: exact Jira release / `fixVersion` name.
+- `latest_release`: use the latest non-archived Jira release; it cannot be combined with `release`.
+- `dry_run`: when `true`, do not send Slack messages.
 
-Запрос без `release` использует последний релиз Jira.
+If neither `release` nor `latest_release` is provided, the latest Jira release is used.
 
-### `GET /debug/project-versions`
-
-```bash
-curl "http://localhost:8080/debug/project-versions"
-```
-
-### `GET /debug/jira-search`
+### Diagnostic Endpoints
 
 ```bash
-curl "http://localhost:8080/debug/jira-search?release=2026%20-%206"
-```
-
-### `GET /debug/summary`
-
-```bash
-curl "http://localhost:8080/debug/summary?release=2026%20-%206"
-```
-
-### `GET /debug/report-runs`
-
-```bash
+curl http://localhost:8080/debug/project-versions
+curl "http://localhost:8080/debug/jira-search?release=2026%20-%2015"
+curl "http://localhost:8080/debug/summary?release=2026%20-%2015"
 curl "http://localhost:8080/debug/report-runs?limit=20"
+curl http://localhost:8080/debug/report-runs/65
 ```
 
-## Типовые Сценарии
+The `/debug/*` endpoints are not authenticated. Do not expose them publicly without access controls.
 
-### Собрать и проверить отчет без Slack
+## Common Workflows
+
+Build, preview, and then send a report:
 
 ```bash
-docker compose exec -T jira-release-bot php bin/release-report.php "2026 - 6"
+docker compose exec -T jira-release-bot php bin/release-report.php "2026 - 15"
+docker compose exec -T jira-release-bot php bin/send-release-report.php --run-id=65 --preview
+docker compose exec -T jira-release-bot php bin/send-release-report.php --run-id=65
 ```
 
-### Отправить сохраненный отчет
+Replace `65` with the `report_run_id` returned by the build command.
 
-```bash
-docker compose exec -T jira-release-bot php bin/send-release-report.php "2026 - 6"
-```
-
-### Отправить весь pipeline через HTTP
+Run the complete pipeline through HTTP:
 
 ```bash
 curl -X POST http://localhost:8080/release-report \
   -H "Content-Type: application/json" \
-  -d '{"release":"2026 - 6","dry_run":false}'
+  -d '{"release":"2026 - 15","dry_run":false}'
 ```
-
-## Важно
-
-- Summary всегда rule-based.
-- AI summary не поддерживается.
-- Department grouping не поддерживается.
-- `Issue Details` в Slack не отправляется.
-- Snapshot задач хранится в PostgreSQL.

@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\ReleaseSummary;
 
+use App\ReleaseSummary\Contracts\SummaryServiceInterface;
 use App\ReleaseSummary\DTO\SummaryResult;
 use App\ReleaseSummary\RuleBased\RuleBasedSummaryGenerator;
 use App\ReleaseSummary\Support\ReleaseIssueMapper;
 
-final class SummaryService
+final class SummaryService implements SummaryServiceInterface
 {
     private ReleaseIssueMapper $issueMapper;
     private RuleBasedSummaryGenerator $generator;

@@ -2,11 +2,14 @@
 
 declare(strict_types=1);
 
-namespace App;
+namespace App\Repository;
 
+use App\Contracts\ReportRunRepositoryInterface;
+use App\Infrastructure\Database;
+use App\DTO\CreateReportRunData;
 use PDO;
 
-final class ReportRunRepository
+final class ReportRunRepository implements ReportRunRepositoryInterface
 {
     private PDO $pdo;
 
@@ -16,10 +19,9 @@ final class ReportRunRepository
     }
 
     /**
-     * @param array<string, mixed> $runData
      * @param array<int, array<string, mixed>> $issues
      */
-    public function createRun(array $runData, array $issues): int
+    public function createRun(CreateReportRunData $runData, array $issues): int
     {
         $this->pdo->beginTransaction();
 
@@ -58,32 +60,32 @@ final class ReportRunRepository
                 ) RETURNING id'
             );
 
-            $statement->bindValue(':release_name', (string) $runData['release_name']);
-            $statement->bindValue(':issues_count', (int) $runData['issues_count'], PDO::PARAM_INT);
-            $statement->bindValue(':include_description', (bool) $runData['include_description'], PDO::PARAM_BOOL);
-            $statement->bindValue(':dry_run', (bool) $runData['dry_run'], PDO::PARAM_BOOL);
-            $statement->bindValue(':slack_sent', (bool) $runData['slack_sent'], PDO::PARAM_BOOL);
-            $statement->bindValue(':summary_text', $this->sanitizeText((string) ($runData['summary_text'] ?? '')));
-            $statement->bindValue(':summary_mode', $this->sanitizeText((string) ($runData['summary_mode'] ?? 'rule')));
+            $statement->bindValue(':release_name', $runData->releaseName);
+            $statement->bindValue(':issues_count', $runData->issuesCount, PDO::PARAM_INT);
+            $statement->bindValue(':include_description', $runData->includeDescription, PDO::PARAM_BOOL);
+            $statement->bindValue(':dry_run', $runData->dryRun, PDO::PARAM_BOOL);
+            $statement->bindValue(':slack_sent', $runData->slackSent, PDO::PARAM_BOOL);
+            $statement->bindValue(':summary_text', $this->sanitizeText($runData->summaryText));
+            $statement->bindValue(':summary_mode', $this->sanitizeText($runData->summaryMode));
             $statement->bindValue(
                 ':summary_provider',
-                $this->sanitizeNullableText(isset($runData['summary_provider']) ? (string) $runData['summary_provider'] : null)
+                $this->sanitizeNullableText($runData->summaryProvider)
             );
             $statement->bindValue(
                 ':summary_model',
-                $this->sanitizeNullableText(isset($runData['summary_model']) ? (string) $runData['summary_model'] : null)
+                $this->sanitizeNullableText($runData->summaryModel)
             );
             $statement->bindValue(
                 ':summary_fallback_used',
-                (bool) ($runData['summary_fallback_used'] ?? false),
+                $runData->summaryFallbackUsed,
                 PDO::PARAM_BOOL
             );
-            $statement->bindValue(':summary_raw_output', $this->encodeJson($runData['summary_raw_output'] ?? null));
-            $statement->bindValue(':message_preview', $this->sanitizeText((string) $runData['message_preview']));
-            $statement->bindValue(':jira_jql', $this->sanitizeText((string) $runData['jira_jql']));
+            $statement->bindValue(':summary_raw_output', $this->encodeJson($runData->summaryRawOutput));
+            $statement->bindValue(':message_preview', $this->sanitizeText($runData->messagePreview));
+            $statement->bindValue(':jira_jql', $this->sanitizeText($runData->jiraJql));
             $statement->bindValue(
                 ':release_url',
-                $this->sanitizeNullableText(isset($runData['release_url']) ? (string) $runData['release_url'] : null)
+                $this->sanitizeNullableText($runData->releaseUrl)
             );
             $statement->execute();
 

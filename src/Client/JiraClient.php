@@ -2,9 +2,14 @@
 
 declare(strict_types=1);
 
-namespace App;
+namespace App\Client;
 
-final class JiraClient
+use App\Contracts\JiraClientInterface;
+use App\DTO\JiraSearchResult;
+use App\Support\Env;
+use App\Support\Logger;
+
+final class JiraClient implements JiraClientInterface
 {
     private const ISSUE_FIELDS = 'summary,description,issuetype,status,assignee,reporter,labels,components,parent,subtasks';
 
@@ -32,13 +37,12 @@ final class JiraClient
     {
         $result = $this->searchIssuesByRelease($release);
 
-        return $result['issues'];
+        return $result->issues;
     }
 
     /**
-     * @return array{issues:array<int, array<string, mixed>>, total:int, jql:string}
      */
-    public function searchIssuesByRelease(string $release): array
+    public function searchIssuesByRelease(string $release): JiraSearchResult
     {
         $jql = sprintf(
             'project = "%s" AND fixVersion = "%s" ORDER BY issuetype ASC, key ASC',
@@ -68,11 +72,7 @@ final class JiraClient
 
         $issues = $this->attachParentHierarchy($issues);
 
-        return [
-            'issues' => $issues,
-            'total' => count($issues),
-            'jql' => $jql,
-        ];
+        return new JiraSearchResult($issues, count($issues), $jql);
     }
 
     /**

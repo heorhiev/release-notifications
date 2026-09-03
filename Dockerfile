@@ -1,12 +1,28 @@
-FROM php:8.3-cli
+FROM composer:2 AS composer
+
+FROM php:8.3-cli AS runtime
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq-dev \
+    && apt-get install -y --no-install-recommends libpq-dev unzip \
     && docker-php-ext-install pdo_pgsql \
     && rm -rf /var/lib/apt/lists/*
 
+COPY --from=composer /usr/bin/composer /usr/bin/composer
+
 WORKDIR /app
 
+FROM runtime AS test
+
+COPY composer.json composer.lock /app/
+RUN composer install --no-interaction --prefer-dist
+COPY . /app
+
+CMD ["vendor/bin/phpunit"]
+
+FROM runtime AS production
+
+COPY composer.json composer.lock /app/
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 COPY . /app
 
 EXPOSE 8080

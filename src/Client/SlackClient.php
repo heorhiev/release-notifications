@@ -2,13 +2,15 @@
 
 declare(strict_types=1);
 
-namespace App;
+namespace App\Client;
 
+use App\Contracts\SlackClientInterface;
 use App\Slack\IncomingWebhookTransport;
 use App\Slack\SlackTransportInterface;
 use App\Slack\WorkflowTriggerTransport;
+use App\Support\Env;
 
-final class SlackClient
+final class SlackClient implements SlackClientInterface
 {
     private SlackTransportInterface $transport;
 

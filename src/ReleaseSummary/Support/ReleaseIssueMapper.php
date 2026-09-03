@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace App\ReleaseSummary\Support;
 
-use App\Env;
 use App\ReleaseSummary\DTO\ReleaseIssue;
+use App\ReleaseSummary\DTO\ReleaseSubTask;
+use App\Support\Env;
 
 final class ReleaseIssueMapper
 {
@@ -13,10 +14,7 @@ final class ReleaseIssueMapper
 
     public function __construct()
     {
-        $jiraBaseUrl = rtrim(
-            Env::get('JIRA_BASE_URL', 'https://linksmanagement.atlassian.net') ?? 'https://linksmanagement.atlassian.net',
-            '/'
-        );
+        $jiraBaseUrl = rtrim(Env::require('JIRA_BASE_URL'), '/');
         $this->jiraBrowseBaseUrl = $jiraBaseUrl . '/browse/';
     }
 
@@ -111,7 +109,7 @@ final class ReleaseIssueMapper
 
     /**
      * @param mixed $value
-     * @return array<int, array{key:string,summary:string,url:string,status:string,issueType:string}>
+     * @return array<int, ReleaseSubTask>
      */
     private function extractSubTasks(mixed $value): array
     {
@@ -133,13 +131,13 @@ final class ReleaseIssueMapper
             }
 
             $fields = is_array($item['fields'] ?? null) ? $item['fields'] : [];
-            $result[] = [
-                'key' => $key,
-                'summary' => trim((string) ($fields['summary'] ?? '')),
-                'url' => $this->buildIssueUrl($key),
-                'status' => $this->nestedField($fields, ['status', 'name']) ?? 'Unknown',
-                'issueType' => $this->nestedField($fields, ['issuetype', 'name']) ?? 'Sub-task',
-            ];
+            $result[] = new ReleaseSubTask(
+                key: $key,
+                summary: trim((string) ($fields['summary'] ?? '')),
+                url: $this->buildIssueUrl($key),
+                status: $this->nestedField($fields, ['status', 'name']) ?? 'Unknown',
+                issueType: $this->nestedField($fields, ['issuetype', 'name']) ?? 'Sub-task',
+            );
             $seen[$key] = true;
         }
 

@@ -4,24 +4,39 @@ declare(strict_types=1);
 
 namespace App;
 
+use App\Client\JiraClient;
+use App\Client\SlackClient;
+use App\Contracts\EmployeeRepositoryInterface;
+use App\Contracts\JiraClientInterface;
+use App\Contracts\ReportRunRepositoryInterface;
+use App\Contracts\SlackClientInterface;
+use App\DTO\CreateReportRunData;
+use App\Model\EmployeeRole;
+use App\ReleaseSummary\Contracts\SummaryServiceInterface;
 use App\ReleaseSummary\SummaryService;
+use App\Repository\EmployeeRepository;
+use App\Repository\ReportRunRepository;
+use App\Support\IssueFormatter;
+use App\Support\ReporterIdExtractor;
 
-final class ReleaseReportService
+final class ReleaseReportWorkflow
 {
-    private JiraClient $jiraClient;
-    private SlackClient $slackClient;
+    private JiraClientInterface $jiraClient;
+    private SlackClientInterface $slackClient;
     private IssueFormatter $issueFormatter;
-    private ReportRunRepository $reportRunRepository;
-    private SummaryService $summaryService;
-    private EmployeeRepository $employeeRepository;
+    private ReportRunRepositoryInterface $reportRunRepository;
+    private SummaryServiceInterface $summaryService;
+    private EmployeeRepositoryInterface $employeeRepository;
+    private ReporterIdExtractor $reporterIdExtractor;
 
     public function __construct(
-        ?JiraClient $jiraClient = null,
-        ?SlackClient $slackClient = null,
+        ?JiraClientInterface $jiraClient = null,
+        ?SlackClientInterface $slackClient = null,
         ?IssueFormatter $issueFormatter = null,
-        ?ReportRunRepository $reportRunRepository = null,
-        ?SummaryService $summaryService = null,
-        ?EmployeeRepository $employeeRepository = null
+        ?ReportRunRepositoryInterface $reportRunRepository = null,
+        ?SummaryServiceInterface $summaryService = null,
+        ?EmployeeRepositoryInterface $employeeRepository = null,
+        ?ReporterIdExtractor $reporterIdExtractor = null,
     ) {
         $this->jiraClient = $jiraClient ?? new JiraClient();
         $this->slackClient = $slackClient ?? new SlackClient();
@@ -29,6 +44,7 @@ final class ReleaseReportService
         $this->reportRunRepository = $reportRunRepository ?? new ReportRunRepository();
         $this->summaryService = $summaryService ?? new SummaryService();
         $this->employeeRepository = $employeeRepository ?? new EmployeeRepository();
+        $this->reporterIdExtractor = $reporterIdExtractor ?? new ReporterIdExtractor();
     }
 
     /**
@@ -41,7 +57,7 @@ final class ReleaseReportService
     {
         $releaseUrl = $this->jiraClient->getReleaseUrlByName($release);
         $searchResult = $this->jiraClient->searchIssuesByRelease($release);
-        $issues = $searchResult['issues'];
+        $issues = $searchResult->issues;
         $summary = $this->summaryService->generate($release, $issues);
         $message = $this->issueFormatter->formatSummarySlackMessage($release, $summary->text);
         $nextRelease = $this->jiraClient->getNextReleaseName($release);
@@ -61,29 +77,29 @@ final class ReleaseReportService
             $reportersCheckMessage = $this->issueFormatter->formatReportersCheckMessage(
                 $release,
                 $nextRelease,
-                $this->employeeRepository->findSlackUserIdsByJiraUserIds($this->extractReporterJiraUserIds($issues))
+                $this->employeeRepository->findSlackUserIdsByJiraUserIds($this->reporterIdExtractor->fromJiraIssues($issues))
             );
             if ($reportersCheckMessage !== '') {
                 $this->slackClient->sendMessage($reportersCheckMessage);
             }
         }
 
-        $reportRunId = $this->reportRunRepository->createRun([
-            'release_name' => $release,
-            'issues_count' => count($issues),
-            'include_description' => true,
-            'dry_run' => $dryRun,
-            'slack_sent' => !$dryRun,
-            'summary_text' => $summary->text,
-            'summary_mode' => $summary->mode,
-            'summary_provider' => $summary->meta['provider'] ?? $summary->mode,
-            'summary_model' => $summary->meta['model'] ?? null,
-            'summary_fallback_used' => (bool) ($summary->meta['fallback_used'] ?? false),
-            'summary_raw_output' => $summary->rawOutput,
-            'message_preview' => $message,
-            'jira_jql' => (string) $searchResult['jql'],
-            'release_url' => $releaseUrl,
-        ], $issues);
+        $reportRunId = $this->reportRunRepository->createRun(new CreateReportRunData(
+            releaseName: $release,
+            issuesCount: count($issues),
+            includeDescription: true,
+            dryRun: $dryRun,
+            slackSent: !$dryRun,
+            summaryText: $summary->text,
+            summaryMode: $summary->mode,
+            summaryProvider: (string) ($summary->meta['provider'] ?? $summary->mode),
+            summaryModel: isset($summary->meta['model']) ? (string) $summary->meta['model'] : null,
+            summaryFallbackUsed: (bool) ($summary->meta['fallback_used'] ?? false),
+            summaryRawOutput: $summary->rawOutput,
+            messagePreview: $message,
+            jiraJql: $searchResult->jql,
+            releaseUrl: $releaseUrl,
+        ), $issues);
 
         $result = [
             'report_run_id' => $reportRunId,
@@ -100,27 +116,6 @@ final class ReleaseReportService
         ];
 
         return $result;
-    }
-
-    /**
-     * @param array<int, array<string, mixed>> $issues
-     * @return array<int, string>
-     */
-    private function extractReporterJiraUserIds(array $issues): array
-    {
-        $jiraUserIds = [];
-
-        foreach ($issues as $issue) {
-            $fields = is_array($issue['fields'] ?? null) ? $issue['fields'] : [];
-            $reporter = is_array($fields['reporter'] ?? null) ? $fields['reporter'] : [];
-            $accountId = trim((string) ($reporter['accountId'] ?? ''));
-
-            if ($accountId !== '') {
-                $jiraUserIds[] = $accountId;
-            }
-        }
-
-        return array_values(array_unique($jiraUserIds));
     }
 
     /**

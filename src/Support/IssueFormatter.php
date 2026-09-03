@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App;
+namespace App\Support;
 
 final class IssueFormatter
 {
@@ -12,10 +12,10 @@ final class IssueFormatter
 
     public function __construct()
     {
-        $jiraBaseUrl = rtrim(Env::get('JIRA_BASE_URL', 'https://linksmanagement.atlassian.net') ?? 'https://linksmanagement.atlassian.net', '/');
+        $jiraBaseUrl = rtrim(Env::require('JIRA_BASE_URL'), '/');
         $this->jiraBaseUrl = $jiraBaseUrl;
         $this->jiraBrowseBaseUrl = $jiraBaseUrl . '/browse/';
-        $this->jiraProjectKey = trim(Env::get('JIRA_PROJECT_KEY', 'ADSY') ?? 'ADSY');
+        $this->jiraProjectKey = trim(Env::require('JIRA_PROJECT_KEY'));
     }
 
     public function formatSummarySlackMessage(string $release, string $summaryText): string
@@ -84,7 +84,7 @@ final class IssueFormatter
 
     private function buildUserTasksUrl(string $releaseName): string
     {
-        $projectKey = $this->jiraProjectKey !== '' ? $this->jiraProjectKey : 'ADSY';
+        $projectKey = $this->jiraProjectKey;
         $jql = sprintf(
             "project = \"%s\"\nAND fixversion = \"%s\"\nAND reporter = currentUser()\nORDER BY key DESC, Rank DESC",
             $projectKey,
@@ -127,7 +127,9 @@ final class IssueFormatter
 
     private function normalizeEnvMultilineText(string $text): string
     {
-        return trim(str_replace(['\\r\\n', '\\n', '\\r'], "\n", $text));
+        $text = trim(str_replace(['\\r\\n', '\\n', '\\r'], "\n", $text));
+
+        return preg_replace('/^---\n(?!\n)/', "---\n\n", $text) ?? $text;
     }
 
     private function formatSlackMentions(string $userIds): string
@@ -148,11 +150,7 @@ final class IssueFormatter
             $mentions[] = sprintf('<@%s>', $id);
         }
 
-        $mentions = array_values(array_unique($mentions));
-        shuffle($mentions);
-        $mentions = $this->ensureMentionBefore($mentions, '<@U0B6HH47VCP>', '<@U08JC09FDK3>');
-
-        return implode(' ', $mentions);
+        return implode(' ', array_values(array_unique($mentions)));
     }
 
     /**
@@ -166,25 +164,6 @@ final class IssueFormatter
             array_map(static fn (string $id): string => trim($id), $ids),
             static fn (string $id): bool => $id !== ''
         ));
-    }
-
-    /**
-     * @param array<int, string> $mentions
-     * @return array<int, string>
-     */
-    private function ensureMentionBefore(array $mentions, string $beforeMention, string $afterMention): array
-    {
-        $beforeIndex = array_search($beforeMention, $mentions, true);
-        $afterIndex = array_search($afterMention, $mentions, true);
-
-        if ($beforeIndex === false || $afterIndex === false || $beforeIndex < $afterIndex) {
-            return $mentions;
-        }
-
-        $mentions[$beforeIndex] = $afterMention;
-        $mentions[$afterIndex] = $beforeMention;
-
-        return $mentions;
     }
 
     private function isPreformattedSlackSummary(string $summaryText): bool

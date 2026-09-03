@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/bootstrap.php';
 
-use App\ReleaseReportService;
+use App\ReleaseReportWorkflow;
 
 $argv = $_SERVER['argv'] ?? [];
 $release = null;
@@ -33,12 +33,12 @@ if ($release !== null && $latestRelease) {
 }
 
 try {
-    $service = new ReleaseReportService();
+    $workflow = new ReleaseReportWorkflow();
     $result = $latestRelease
-        ? $service->sendLatestReleaseReport(
+        ? $workflow->sendLatestReleaseReport(
             true
         )
-        : $service->sendReleaseReport(
+        : $workflow->sendReleaseReport(
             (string) $release,
             true
         );

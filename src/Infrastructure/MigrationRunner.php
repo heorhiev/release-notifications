@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App;
+namespace App\Infrastructure;
 
 use PDO;
 
@@ -85,4 +85,3 @@ final class MigrationRunner
         );
     }
 }
-

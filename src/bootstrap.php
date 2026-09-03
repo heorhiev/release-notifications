@@ -20,6 +20,6 @@ spl_autoload_register(static function (string $className): void {
 
 $envFile = dirname(__DIR__) . '/.env';
 if (is_file($envFile)) {
-    App\Env::load($envFile);
+    \App\Support\Env::load($envFile);
 }
 

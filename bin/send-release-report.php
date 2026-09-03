@@ -5,11 +5,13 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/bootstrap.php';
 
-use App\IssueFormatter;
-use App\EmployeeRepository;
-use App\JiraClient;
-use App\ReportRunRepository;
-use App\SlackClient;
+use App\Client\JiraClient;
+use App\Client\SlackClient;
+use App\Model\EmployeeRole;
+use App\Repository\EmployeeRepository;
+use App\Repository\ReportRunRepository;
+use App\Support\IssueFormatter;
+use App\Support\ReporterIdExtractor;
 
 $argv = $_SERVER['argv'] ?? [];
 $release = null;
@@ -82,12 +84,16 @@ try {
     $developersCheckMessage = $formatter->formatDevelopersCheckMessage(
         $releaseName,
         $nextRelease,
-        $employeeRepository->findSlackUserIdsByRole(App\EmployeeRole::DEVELOPER)
+        $employeeRepository->findSlackUserIdsByRole(EmployeeRole::DEVELOPER)
     );
     $reportersCheckMessage = $formatter->formatReportersCheckMessage(
         $releaseName,
         $nextRelease,
-        $employeeRepository->findSlackUserIdsByJiraUserIds(extractReporterJiraUserIds($run['issues'] ?? []))
+        $employeeRepository->findSlackUserIdsByJiraUserIds(
+            (new ReporterIdExtractor())->fromReportRunSnapshots(
+                is_array($run['issues'] ?? null) ? $run['issues'] : []
+            )
+        )
     );
 
     if ($preview) {
@@ -135,34 +141,4 @@ try {
 } catch (Throwable $exception) {
     fwrite(STDERR, $exception->getMessage() . PHP_EOL);
     exit(1);
-}
-
-/**
- * @param mixed $issues
- * @return array<int, string>
- */
-function extractReporterJiraUserIds(mixed $issues): array
-{
-    if (!is_array($issues)) {
-        return [];
-    }
-
-    $jiraUserIds = [];
-
-    foreach ($issues as $issue) {
-        if (!is_array($issue)) {
-            continue;
-        }
-
-        $rawIssue = is_array($issue['raw_issue'] ?? null) ? $issue['raw_issue'] : [];
-        $fields = is_array($rawIssue['fields'] ?? null) ? $rawIssue['fields'] : [];
-        $reporter = is_array($fields['reporter'] ?? null) ? $fields['reporter'] : [];
-        $accountId = trim((string) ($reporter['accountId'] ?? ''));
-
-        if ($accountId !== '') {
-            $jiraUserIds[] = $accountId;
-        }
-    }
-
-    return array_values(array_unique($jiraUserIds));
 }

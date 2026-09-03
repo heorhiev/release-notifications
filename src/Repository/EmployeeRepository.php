@@ -2,11 +2,14 @@
 
 declare(strict_types=1);
 
-namespace App;
+namespace App\Repository;
 
+use App\Contracts\EmployeeRepositoryInterface;
+use App\Infrastructure\Database;
+use App\Model\EmployeeRole;
 use PDO;
 
-final class EmployeeRepository
+final class EmployeeRepository implements EmployeeRepositoryInterface
 {
     public const ROLE_DEFAULT = EmployeeRole::DEFAULT;
     public const ROLE_DEVELOPER = EmployeeRole::DEVELOPER;
@@ -47,7 +50,7 @@ final class EmployeeRepository
                 'SELECT slack_user_id
                 FROM employees
                 WHERE jira_user_id IN (%s)
-                ORDER BY slack_user_id ASC',
+                ORDER BY priority DESC, slack_user_id ASC',
                 implode(', ', $placeholders)
             )
         );
@@ -82,7 +85,7 @@ final class EmployeeRepository
             'SELECT slack_user_id
             FROM employees
             WHERE role = :role
-            ORDER BY slack_user_id ASC'
+            ORDER BY priority DESC, slack_user_id ASC'
         );
         $statement->bindValue(':role', $role, PDO::PARAM_INT);
         $statement->execute();

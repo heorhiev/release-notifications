@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App;
+namespace App\Support;
 
 final class Env
 {
@@ -45,7 +45,7 @@ final class Env
             return $default;
         }
 
-        return (string) $value;
+        return self::stripWrappingQuotes((string) $value);
     }
 
     public static function require(string $name): string
@@ -73,4 +73,3 @@ final class Env
         return $value;
     }
 }
-

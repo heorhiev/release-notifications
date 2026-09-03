@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App;
+namespace App\Infrastructure;
 
+use App\Support\Env;
 use PDO;
 
 final class Database
@@ -32,4 +33,3 @@ final class Database
         return self::$connection;
     }
 }
-

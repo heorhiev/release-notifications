@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/bootstrap.php';
 
-use App\JiraClient;
-use App\ReleaseReportService;
+use App\Client\JiraClient;
+use App\ReleaseReportWorkflow;
 use App\ReleaseSummary\SummaryService;
-use App\ReportRunRepository;
+use App\Repository\ReportRunRepository;
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -42,23 +42,19 @@ if ($method === 'POST' && $path === '/release-report') {
     }
 
     $release = trim((string) ($payload['release'] ?? ''));
-    $latestRelease = array_key_exists('latest_release', $payload)
-        ? (bool) $payload['latest_release']
-        : false;
-    $dryRun = array_key_exists('dry_run', $payload)
-        ? (bool) $payload['dry_run']
-        : false;
+    $latestRelease = parseBoolean($payload['latest_release'] ?? false, 'latest_release');
+    $dryRun = parseBoolean($payload['dry_run'] ?? false, 'dry_run');
     if ($release !== '' && $latestRelease) {
         jsonResponse(['error' => 'Use either "release" or "latest_release", not both'], 422);
     }
 
     try {
-        $service = new ReleaseReportService();
+        $workflow = new ReleaseReportWorkflow();
         $result = ($release === '' || $latestRelease)
-            ? $service->sendLatestReleaseReport(
+            ? $workflow->sendLatestReleaseReport(
                 $dryRun
             )
-            : $service->sendReleaseReport(
+            : $workflow->sendReleaseReport(
                 $release,
                 $dryRun
             );
@@ -97,7 +93,7 @@ if ($method === 'GET' && $path === '/debug/jira-search') {
         $jiraClient = new JiraClient();
         $result = $jiraClient->searchIssuesByRelease($release);
 
-        jsonResponse($result, 200);
+        jsonResponse($result->toArray(), 200);
     } catch (Throwable $exception) {
         jsonResponse(['error' => $exception->getMessage()], 500);
     }
@@ -105,9 +101,7 @@ if ($method === 'GET' && $path === '/debug/jira-search') {
 
 if ($method === 'GET' && $path === '/debug/summary') {
     $release = trim((string) ($_GET['release'] ?? ''));
-    $latestRelease = array_key_exists('latest_release', $_GET)
-        ? (bool) $_GET['latest_release']
-        : false;
+    $latestRelease = parseBoolean($_GET['latest_release'] ?? false, 'latest_release');
 
     try {
         $jiraClient = new JiraClient();
@@ -120,11 +114,11 @@ if ($method === 'GET' && $path === '/debug/summary') {
         }
 
         $searchResult = $jiraClient->searchIssuesByRelease($release);
-        $summary = (new SummaryService())->generate($release, $searchResult['issues']);
+        $summary = (new SummaryService())->generate($release, $searchResult->issues);
 
         jsonResponse([
             'release' => $release,
-            'issues_count' => count($searchResult['issues']),
+            'issues_count' => count($searchResult->issues),
             'summary' => [
                 'mode' => $summary->mode,
                 'text' => $summary->text,
@@ -172,3 +166,17 @@ if ($method === 'GET' && preg_match('#^/debug/report-runs/(\d+)$#', (string) $pa
 }
 
 jsonResponse(['error' => 'Not found'], 404);
+
+function parseBoolean(mixed $value, string $field): bool
+{
+    if (is_bool($value)) {
+        return $value;
+    }
+
+    $parsed = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($parsed === null) {
+        jsonResponse(['error' => sprintf('Field "%s" must be boolean', $field)], 422);
+    }
+
+    return $parsed;
+}

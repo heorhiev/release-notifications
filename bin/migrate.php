@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/bootstrap.php';
 
-use App\MigrationRunner;
+use App\Infrastructure\MigrationRunner;
 
 try {
     $runner = new MigrationRunner();
@@ -17,4 +17,3 @@ try {
     fwrite(STDERR, $exception->getMessage() . PHP_EOL);
     exit(1);
 }
-

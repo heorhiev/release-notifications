@@ -9,7 +9,7 @@ final class ReleaseIssue
     /**
      * @param array<int, string> $labels
      * @param array<int, string> $components
-     * @param array<int, array{key:string,summary:string,url:string,status:string,issueType:string}> $subTasks
+     * @param array<int, ReleaseSubTask> $subTasks
      */
     public function __construct(
         public readonly string $key,

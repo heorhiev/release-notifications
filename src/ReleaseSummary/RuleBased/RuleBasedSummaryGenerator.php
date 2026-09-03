@@ -4,22 +4,23 @@ declare(strict_types=1);
 
 namespace App\ReleaseSummary\RuleBased;
 
-use App\Env;
+use App\Contracts\EpicRepositoryInterface;
 use App\ReleaseSummary\Contracts\SummaryGeneratorInterface;
 use App\ReleaseSummary\DTO\ReleaseIssue;
 use App\ReleaseSummary\DTO\SummaryResult;
+use App\Repository\EpicRepository;
+use App\Support\Env;
 
 final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
 {
     private string $jiraBrowseBaseUrl;
+    private EpicRepositoryInterface $epicRepository;
 
-    public function __construct()
+    public function __construct(?EpicRepositoryInterface $epicRepository = null)
     {
-        $jiraBaseUrl = rtrim(
-            Env::get('JIRA_BASE_URL', 'https://linksmanagement.atlassian.net') ?? 'https://linksmanagement.atlassian.net',
-            '/'
-        );
+        $jiraBaseUrl = rtrim(Env::require('JIRA_BASE_URL'), '/');
         $this->jiraBrowseBaseUrl = $jiraBaseUrl . '/browse/';
+        $this->epicRepository = $epicRepository ?? new EpicRepository();
     }
 
     /**
@@ -77,7 +78,7 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
 
     /**
      * @param array<int, ReleaseIssue> $issues
-     * @return array<int, array{group_key:string,title:string,items:array<int, string>,issues_count:int}>
+     * @return array<int, array{group_key:string,title:string,items:array<int, string>,issues_count:int,priority:int}>
      */
     private function groupIssuesByParent(array $issues): array
     {
@@ -160,9 +161,27 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
             unset($groups[$groupKey]['entries'], $groups[$groupKey]['containers']);
         }
 
+        $epicPriorities = [];
+        $jiraEpicKeys = array_values(array_filter(
+            array_keys($groups),
+            static fn (string $groupKey): bool => $groupKey !== '__no_epic__'
+        ));
+        foreach ($this->epicRepository->findByJiraKeys($jiraEpicKeys) as $epic) {
+            $epicPriorities[$epic->jiraKey] = $epic->priority;
+        }
+
+        foreach ($groups as $groupKey => $_group) {
+            $groups[$groupKey]['priority'] = $epicPriorities[$groupKey] ?? 1;
+        }
+
         uasort(
             $groups,
             static function (array $left, array $right): int {
+                $priorityComparison = $right['priority'] <=> $left['priority'];
+                if ($priorityComparison !== 0) {
+                    return $priorityComparison;
+                }
+
                 if ($left['group_key'] === '__no_epic__') {
                     return 1;
                 }
@@ -171,19 +190,24 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
                     return -1;
                 }
 
-                if (strcasecmp(self::extractGroupTitleLabel($left['title']), 'Bugs') === 0) {
-                    return 1;
-                }
-
-                if (strcasecmp(self::extractGroupTitleLabel($right['title']), 'Bugs') === 0) {
-                    return -1;
-                }
-
-                return strcasecmp($left['title'], $right['title']);
+                return strcasecmp(
+                    self::extractGroupTitleLabel($left['title']),
+                    self::extractGroupTitleLabel($right['title'])
+                );
             }
         );
 
         return array_values($groups);
+    }
+
+    private static function extractGroupTitleLabel(string $title): string
+    {
+        $title = trim($title, "* \t\n\r\0\x0B");
+        if (preg_match('/^<[^|>]+\\|(.+)>$/', $title, $matches) === 1) {
+            return trim($matches[1]);
+        }
+
+        return trim($title);
     }
 
     /**
@@ -204,7 +228,7 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
             }
 
             foreach ($issue->subTasks as $subTask) {
-                $key = $subTask['key'] ?? '';
+                $key = $subTask->key;
                 if ($key !== '' && isset($issueKeys[$key])) {
                     $subTaskKeys[$key] = true;
                 }
@@ -254,7 +278,7 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
 
         $subTasks = array_values(array_filter(
             $issue->subTasks,
-            static fn (array $subTask): bool => isset($releaseIssueKeys[$subTask['key'] ?? ''])
+            static fn ($subTask): bool => isset($releaseIssueKeys[$subTask->key])
         ));
 
         $lines = $subTasks === []
@@ -263,9 +287,9 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
 
         foreach ($subTasks as $subTask) {
             $lines[] = '    ◦ ' . $this->formatIssueTitleLine(
-                $subTask['summary'] ?? '',
-                $subTask['key'] ?? '',
-                $subTask['url'] ?? $this->buildIssueUrl($subTask['key'] ?? '')
+                $subTask->summary,
+                $subTask->key,
+                $subTask->url
             );
         }
 
@@ -277,16 +301,6 @@ final class RuleBasedSummaryGenerator implements SummaryGeneratorInterface
         $summary = trim($summary) !== '' ? trim($summary) : 'Без названия';
 
         return sprintf('*<%s|%s>*', trim($url), $summary);
-    }
-
-    private static function extractGroupTitleLabel(string $title): string
-    {
-        $title = trim($title, "* \t\n\r\0\x0B");
-        if (preg_match('/^<[^|>]+\\|(.+)>$/', $title, $matches) === 1) {
-            return trim($matches[1]);
-        }
-
-        return trim($title);
     }
 
     private function formatIssueTitleLine(string $summary, string $key, string $url): string

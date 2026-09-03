@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Slack;
 
-use App\Env;
-use App\HttpClient;
-use App\Logger;
+use App\Client\HttpClient;
+use App\Support\Env;
+use App\Support\Logger;
 
 final class WorkflowTriggerTransport implements SlackTransportInterface
 {

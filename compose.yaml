@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: production
     container_name: jira-release-bot
     env_file:
       - .env
@@ -51,6 +52,35 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    environment:
+      TEST_DB_DSN: pgsql:host=postgres-test;port=5432;dbname=jira_release_bot_test
+      TEST_DB_USERNAME: jira_release_bot
+      TEST_DB_PASSWORD: jira_release_bot
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    profiles: [test]
+
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: jira_release_bot_test
+      POSTGRES_USER: jira_release_bot
+      POSTGRES_PASSWORD: jira_release_bot
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jira_release_bot -d jira_release_bot_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    tmpfs:
+      - /var/lib/postgresql/data
+    profiles: [test]
 
 volumes:
   postgres_data:
