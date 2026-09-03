@@ -224,8 +224,8 @@ curl -X POST http://localhost:8082/release-report \
 
 Request fields:
 
-- `release`: exact Jira release / `fixVersion` name.
-- `latest_release`: use the latest non-archived Jira release. It cannot be combined with `release`.
+- `release`: exact Jira release / `fixVersion` name;
+- `latest_release`: use the latest non-archived Jira release. It cannot be combined with `release`;
 - `dry_run`: when `true`, do not send Slack messages.
 
 If neither `release` nor `latest_release` is provided, the latest Jira release is used.
