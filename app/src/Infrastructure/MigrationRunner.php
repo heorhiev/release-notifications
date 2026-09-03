@@ -20,7 +20,7 @@ final class MigrationRunner
      */
     public function migrate(): array
     {
-        $migrationFiles = glob(dirname(__DIR__) . '/migrations/*.sql');
+        $migrationFiles = glob(dirname(__DIR__, 2) . '/migrations/*.sql');
         if ($migrationFiles === false) {
             throw new \RuntimeException('Unable to list migration files');
         }

@@ -1,0 +1,26 @@
+{
+  "name": "jira-release-report",
+  "version": "0.1.0+codex.20260903114637",
+  "description": "Build, preview, and send Jira release reports through the Jira Release Report service.",
+  "author": {
+    "name": "Ruslan Georgiev"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Jira Release Report",
+    "shortDescription": "Build Jira release reports and send them to Slack.",
+    "longDescription": "Build and store a report for an exact or latest Jira release, preview saved Slack messages, and send reports only when explicitly requested.",
+    "developerName": "Ruslan Georgiev",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Build the latest Jira release report and send it to Slack.",
+      "Build a report for a specific Jira release.",
+      "Preview the latest Jira release report without sending it."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

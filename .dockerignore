@@ -3,3 +3,6 @@
 .idea
 .phpunit.cache
 vendor
+app/.phpunit.cache
+app/vendor
+docker/data

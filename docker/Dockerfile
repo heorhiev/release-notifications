@@ -13,18 +13,18 @@ WORKDIR /app
 
 FROM runtime AS test
 
-COPY composer.json composer.lock /app/
+COPY app/composer.json app/composer.lock /app/
 RUN composer install --no-interaction --prefer-dist
-COPY . /app
+COPY app/ /app/
 
 CMD ["vendor/bin/phpunit"]
 
 FROM runtime AS production
 
-COPY composer.json composer.lock /app/
+COPY app/composer.json app/composer.lock /app/
 RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
-COPY . /app
+COPY app/ /app/
 
 EXPOSE 8080
 
-CMD ["sh", "-lc", "php -S 0.0.0.0:${APP_PORT:-8080} -t public"]
+CMD ["php", "-S", "0.0.0.0:8080", "-t", "/app/public"]

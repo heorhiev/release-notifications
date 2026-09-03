@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "jira-release-report": {
+      "command": "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+      "args": ["./scripts/mcp-server.mjs"],
+      "cwd": ".",
+      "tool_timeout_sec": 120
+    }
+  }
+}
